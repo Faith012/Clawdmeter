@@ -85,12 +85,16 @@ pub struct Payload {
     /// alert itself is unchanged). The device keeps the last value it got.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub aa: Option<u16>,
+    /// Status mode: 1 = Clawd and the status line follow Claude Code, 0 = off.
+    /// The device keeps the last value it got.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sm: Option<u8>,
 }
 
 /// Every key [`Payload`] can emit, in serialization order.
 pub const PAYLOAD_KEYS: &[&str] = &[
     "s", "sr", "w", "wr", "st", "acct", "tp", "pd", "rd", "t", "tf", "c", "ok", "b", "m", "x", "a", "e", "es", "n",
-    "rp", "lv", "aa",
+    "rp", "lv", "aa", "sm",
 ];
 /// The fast-clock keys added in v0.4 (old firmware ignores them).
 pub const ADDITIVE_KEYS: &[&str] = &["a", "e", "es", "n", "rp"];
@@ -500,6 +504,7 @@ mod tests {
             rp: Some(1),
             lv: Some(3),
             aa: Some(120),
+            sm: Some(1),
         };
         let v: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&pl.to_json()).unwrap();
         // serde_json's Map is sorted without preserve_order; check membership.

@@ -264,6 +264,8 @@ pub struct Settings {
     pub liveliness: u8,
     /// How long Clawd points and waves for an alert (`aa`, default 2m).
     pub attention_anim: AttentionAnim,
+    /// Clawd and the device's status line follow Claude Code (`sm`, default on).
+    pub status_mode: bool,
 }
 
 /// `alert_on`: the alert kinds that show, as a comma list of `permission`,
@@ -391,6 +393,7 @@ impl Settings {
             alert_on: cfg.get("alert_on").map(AlertOn::parse).unwrap_or_default(),
             liveliness: cfg.get("liveliness").map(parse_liveliness).unwrap_or(DEFAULT_LIVELINESS),
             attention_anim: cfg.get("attention_anim").map(AttentionAnim::parse).unwrap_or_default(),
+            status_mode: on_off(cfg.get("status_mode"), true),
         }
     }
 
@@ -479,6 +482,9 @@ impl Settings {
         }
         if current.attention_anim != self.attention_anim {
             cfg.set("attention_anim", self.attention_anim.as_str());
+        }
+        if current.status_mode != self.status_mode {
+            cfg.set("status_mode", oo(self.status_mode));
         }
     }
 }
@@ -625,6 +631,21 @@ mod tests {
         s.apply_to(&mut cfg, &paths());
         assert_eq!(cfg.get("liveliness"), Some("1"));
         assert_eq!(Settings::from_config(&cfg, &paths(), None).liveliness, 1);
+    }
+
+    #[test]
+    fn status_mode() {
+        assert!(settings("").status_mode, "on by default");
+        assert!(!settings("status_mode = off\n").status_mode);
+
+        let mut cfg = ConfigFile::parse("");
+        let mut s = Settings::from_config(&cfg, &paths(), None);
+        s.apply_to(&mut cfg, &paths());
+        assert!(cfg.get("status_mode").is_none(), "the default stays out of the file");
+        s.status_mode = false;
+        s.apply_to(&mut cfg, &paths());
+        assert_eq!(cfg.get("status_mode"), Some("off"));
+        assert!(!Settings::from_config(&cfg, &paths(), None).status_mode);
     }
 
     #[test]
