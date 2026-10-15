@@ -621,6 +621,19 @@ impl SettingsView {
                 },
             ),
         ));
+        let me = cx.entity().downgrade();
+        let status = self.settings.status_mode;
+        pane = pane.child(field(
+            t,
+            "Show what Claude is doing",
+            "Clawd and the status line follow Claude Code: thinking, working, done.",
+            toggle(t, "status-mode", status, true, move |_, _, cx| {
+                let _ = me.update(cx, |v, cx| {
+                    v.save(|s, _| s.status_mode = !status);
+                    cx.notify();
+                });
+            }),
+        ));
         let (me1, me2) = (cx.entity().downgrade(), cx.entity().downgrade());
         let (alert, reset) = (self.settings.alert_chime, self.settings.reset_chime);
         pane = pane
@@ -1403,6 +1416,8 @@ mod tests {
         assert!(std::fs::read_to_string(&paths.config_file).unwrap().contains("attention_anim = off"));
         click(cx, "attention-anim-2"); // 30 s
         assert!(std::fs::read_to_string(&paths.config_file).unwrap().contains("attention_anim = 30s"));
+        click(cx, "status-mode"); // On by default: a click turns it off.
+        assert!(std::fs::read_to_string(&paths.config_file).unwrap().contains("status_mode = off"));
 
         view.update(cx, |v, cx| v.show(Page::Settings, false, cx));
         click(cx, "poll-2"); // While working: 5 min
