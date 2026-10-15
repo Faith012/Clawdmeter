@@ -49,6 +49,11 @@ void director_set_pairing_touch(bool on);
 // then skips the button's normal action, push to talk or brightness);
 // otherwise false.
 bool director_button(bool main_button);
+// Status mode (clawd_prefs `sm`, default on): the corner Clawd loops an act
+// for what Claude is doing and the status line says it (clawd_status in
+// clawd_policy.h). Off: idle acts and whimsical verbs as before.
+void director_set_status_mode(bool on);
+bool director_status_mode(void);
 // PWR double press: a show now, with any scene (not the mood group's), that
 // doesn't use up the automatic shows' cooldown. Only from the meters at
 // rest (home or a corner act); false otherwise, and the caller treats it as

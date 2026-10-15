@@ -76,9 +76,9 @@ static const uint16_t HURRY_PCT = 250;        // hurrying home from a lurk trip
 // panel) would be clipped by the top edge. It swaps for this official act,
 // which always fits, instead.
 static const char* const TALL_FALLBACK = "dancing";
-// Everything the corner buffer must fit.
+// Everything the corner buffer must fit (laptop and magnifier: status mode).
 static const char* const CORNER_ANIMS[] = {
-    "walking", "waving", "pointing", "dancing", "jumping happy",
+    "walking", "waving", "pointing", "dancing", "jumping happy", "laptop", "magnifier",
 };
 
 // ─── Rendering ───────────────────────────────────────────────────────────────

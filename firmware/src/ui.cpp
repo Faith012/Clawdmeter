@@ -156,6 +156,15 @@ static uint8_t fitting_verb(uint8_t i) {
     return i;
 }
 
+static ClawdStatus claude_status = STATUS_IDLE;   // status mode (ui_set_claude_status)
+
+// The long wording when it fits the status line as "<glyph> <text>…", else the short.
+static const char* fitting_status(const char* long_text, const char* short_text) {
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%s %s\xE2\x80\xA6", spinner_frames[1], long_text);
+    return layout_text_width(L.status_font, buf) <= L.status_w ? long_text : short_text;
+}
+
 static lv_color_t pct_color(float pct) {
     if (pct >= 80.0f) return COL_RED;
     if (pct >= 50.0f) return COL_AMBER;
@@ -678,14 +687,26 @@ void ui_tick_anim(void) {
         anim_spinner_idx = 1;
     }
 
-    // Status text by priority. Whimsical messages only when connected & settled.
+    // Status text by priority. What Claude is doing (status mode) or the
+    // whimsical messages, only when connected & settled.
     const char* text;
+    bool dots = true;                  // "…": still going
     if (!s_ble_connected) {
         text = "Waiting";              // advertising / waiting for a host connection
     } else if (view_state == 1) {      // stale — alternate so it reads as alive AND not live
         text = (anim_msg_idx & 1) ? (data_received ? "Stale" : "No data") : "Listening";
     } else if (now - connected_at_ms < 5000) {
         text = "Connected";
+    } else if (claude_status == STATUS_WORKING) {
+        text = fitting_status("Claude is working", "Working");
+    } else if (claude_status == STATUS_THINKING) {
+        text = fitting_status("Claude is thinking", "Thinking");
+    } else if (claude_status == STATUS_DONE) {
+        text = "Done";
+        dots = false;
+    } else if (claude_status == STATUS_LIMIT) {
+        text = "Limit reached";
+        dots = false;
     } else {
         text = anim_messages[anim_verb_idx];
     }
@@ -697,8 +718,8 @@ void ui_tick_anim(void) {
 
     // All states share the whimsical style: "<glyph> <Title-case word>…"
     static char buf[80];
-    snprintf(buf, sizeof(buf), "%s %s\xE2\x80\xA6",
-             spinner_frames[anim_spinner_idx], text);
+    snprintf(buf, sizeof(buf), "%s %s%s",
+             spinner_frames[anim_spinner_idx], text, dots ? "\xE2\x80\xA6" : "");
     lv_label_set_text(lbl_anim, buf);
 }
 
@@ -736,6 +757,11 @@ void ui_update_battery(int percent, bool charging, bool usb_power) {
     }
     lv_image_set_src(battery_img, &battery_dscs[idx]);
     apply_battery_visibility();
+}
+
+void ui_set_claude_status(ClawdStatus s) {
+    claude_status = s;
+    frozen_shown = nullptr;            // a held spinner redraws the new word
 }
 
 void ui_set_alert_text(const char* message) {

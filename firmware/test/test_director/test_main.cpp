@@ -88,6 +88,38 @@ static void test_screensaver_calm_dip_keeps_one_clawd(void) {
     assert_one_clawd();
 }
 
+// Status mode: a prompt has him thinking (magnifier), tool calls working
+// (laptop, no idle acts), a Stop done (jumping happy) even while `a` still
+// counts the last minute; turned off, he's idle with his idle acts back.
+static void test_status_mode_shows_what_claude_is_doing(void) {
+    fresh_director();
+    director_set_status_mode(true);
+    run_for(1000);
+    UsageData d = live_payload();
+    SignalsUpdate sig = no_signal();
+    sig.event_fired = true; sig.event = 'p'; sig.event_seq = 1;
+    send(d, sig);
+    run_for(4000);                                // he points, then thinks
+    TEST_ASSERT_EQUAL(STATUS_THINKING, status);
+    TEST_ASSERT_EQUAL_STRING("magnifier", fake_last_act);
+    world.activity = 2;
+    run_for(4000);
+    TEST_ASSERT_EQUAL(STATUS_WORKING, status);
+    TEST_ASSERT_EQUAL_STRING("laptop", fake_last_act);
+    TEST_ASSERT_FALSE(fake_mascot_autonomy());
+    sig.event = 's'; sig.event_seq = 2;
+    send(d, sig);
+    run_for(4000);
+    TEST_ASSERT_EQUAL(STATUS_DONE, status);       // `a` is still up: the Stop wins
+    TEST_ASSERT_EQUAL_STRING("jumping happy", fake_last_act);
+    world.activity = 0;
+    director_set_status_mode(false);
+    run_for(4000);
+    TEST_ASSERT_EQUAL(STATUS_IDLE, status);
+    TEST_ASSERT_TRUE(fake_mascot_autonomy());     // home, idle acts back
+    assert_one_clawd();
+}
+
 // PWR double press: a show with any scene, from the meters only, that
 // leaves the automatic shows' cooldown alone; a single press mid-scene moves
 // on to the next scene; then he waves, walks off and comes home.
@@ -133,6 +165,7 @@ static void fresh_director(void) {
     clawd_tuning_set_base(&fast);
     clawd_set_liveliness(CLAWD_LIVELINESS_DEFAULT);
     clawd_set_attn_anim(fuzz_attn_s);
+    director_set_status_mode(false);              // tests opt in to status mode
     director_init();
     // Hooks installed: one activity reading is enough for signals to know.
     signals_clear();
@@ -175,7 +208,10 @@ static void fuzz(uint32_t seed, uint32_t total_ms, bool has_big) {
             else                director_debug(BEATS[pick]);
             continue;
         }
-        case 14:         director_set_liveliness((int)fz_range(1, 5)); continue;
+        case 14:
+            if (fz_next() & 1) director_set_liveliness((int)fz_range(1, 5));
+            else               director_set_status_mode(fz_next() & 2);
+            continue;
         default:         break;                   // a quiet stretch
         }
         d.session_pct = pct;
@@ -367,6 +403,7 @@ int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_screensaver_calm_dip_keeps_one_clawd);
     RUN_TEST(test_pwr_asks_for_a_scene_and_the_next_one);
+    RUN_TEST(test_status_mode_shows_what_claude_is_doing);
     RUN_TEST(test_fuzz_one_clawd_with_full_size_sprite);
     RUN_TEST(test_fuzz_one_clawd_without_full_size_sprite);
     RUN_TEST(test_no_nonsense_sits_still_through_everything_but_taps);

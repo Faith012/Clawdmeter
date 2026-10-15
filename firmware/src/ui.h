@@ -1,6 +1,7 @@
 #pragma once
 #include "data.h"
 #include "ble.h"
+#include "clawd_policy.h"
 
 // The meters room: clock, the two usage cards, the status line, battery and
 // the corner Clawd's seat. Rooms, transitions and attention sequencing belong
@@ -29,3 +30,7 @@ void ui_set_pair_hint(PairHint hint);
 // Attention message on the status line (scrolls when long); NULL clears it
 // and the whimsical status line resumes.
 void ui_set_alert_text(const char* message);
+
+// What Claude is doing (status mode): the status line says it instead of the
+// whimsical verbs. STATUS_IDLE and STATUS_WAITING keep the verbs.
+void ui_set_claude_status(ClawdStatus s);

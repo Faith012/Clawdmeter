@@ -39,6 +39,9 @@ static uint8_t  step = 0;
 static uint32_t wait_until = 0;
 static bool     performing = false;   // he's out as the performer on the meters
 static bool     on_demand = false;    // B_SHOW asked for with PWR: any scene, no cooldown
+static bool        status_on = true;       // status mode (clawd_prefs `sm`)
+static ClawdStatus status = STATUS_IDLE;   // what Claude is doing, while status mode is on
+static StatusInput status_in = {};         // what clawd_status reads
 static bool     notice_wake = false;  // B_FACE_HOME: blink first (he noticed you)
 
 // Attention
@@ -77,6 +80,11 @@ static lv_indev_t* touch_indev = NULL;
 
 static uint32_t now_ms(void) { return millis(); }
 
+// Idle acts and lurk trips, unless status mode is showing something.
+static bool autonomy_wanted(void) {
+    return !minimal && clawd_tuning().idle_acts && (status == STATUS_IDLE || status == STATUS_WAITING);
+}
+
 static void go(Beat b) {
     if (b != beat) Serial.printf("[%lu] director: %s -> %s\n", (unsigned long)now_ms(),
                                  BEAT_NAMES[beat], BEAT_NAMES[b]);
@@ -84,7 +92,7 @@ static void go(Beat b) {
     step = 0;
     on_demand = false;
     wait_until = now_ms();
-    mascot_autonomy(b == B_HOME && !minimal && clawd_tuning().idle_acts);
+    mascot_autonomy(b == B_HOME && autonomy_wanted());
 }
 
 void director_set_trace(bool on) { trace = on; }
@@ -282,6 +290,9 @@ bool director_button(bool main_button) {
     return false;
 }
 
+void director_set_status_mode(bool on) { status_on = on; }
+bool director_status_mode(void) { return status_on; }
+
 bool director_play_scene(void) {
     if (minimal || (beat != B_HOME && beat != B_CORNER)) return false;
     engage();
@@ -309,7 +320,7 @@ void director_set_liveliness(int level) {
     if (!t.reactions) { react_anim = NULL; joy_pending = false; }
     if (!t.screensaver) resume_screensaver = false;
     if ((beat == B_SHOW && !t.shows) || (beat == B_SCREENSAVER && !t.screensaver)) to_meters(false);
-    mascot_autonomy(beat == B_HOME && !minimal && t.idle_acts);
+    mascot_autonomy(beat == B_HOME && autonomy_wanted());
 }
 
 static void indev_cb(lv_event_t* e) {
@@ -322,6 +333,7 @@ static void indev_cb(lv_event_t* e) {
 void director_on_payload(const UsageData* d, const SignalsUpdate* sig) {
     if (!d->valid || !d->ok) return;
     window_not_started = !d->enterprise && d->session_reset_mins < 0;
+    status_in.limited = strcmp(d->status, "limited") == 0;
 
     // The slow clock moving counts as you being around.
     if (!sig->replay) {
@@ -348,6 +360,8 @@ void director_on_payload(const UsageData* d, const SignalsUpdate* sig) {
     if (sig->event_fired) {
         engage();
         const bool wave = turn_on_event(&turn, sig->event, now_ms(), &clawd_tuning());
+        if (sig->event == 'p' || sig->event == 'b') { status_in.have_prompt = true; status_in.prompt_at = now_ms(); }
+        if (sig->event == 's')                      { status_in.have_stop = true;   status_in.stop_at = now_ms(); }
         if (minimal) return;
         if (sig->event == 'p' || sig->event == 'b') {
             resume_screensaver = false;       // you're back
@@ -357,7 +371,7 @@ void director_on_payload(const UsageData* d, const SignalsUpdate* sig) {
                 // Anticipation: he turns and points before anything else.
                 react("pointing", 1);
             }
-        } else if (sig->event == 's' && wave) {
+        } else if (sig->event == 's' && wave && !status_on) {   // status mode cheers instead
             react("waving", 1);
         }
     }
@@ -386,6 +400,8 @@ void director_init(void) {
     face_init();
     show_gate_clear(&show_gate);
     turn_clear(&turn);
+    status = STATUS_IDLE;
+    memset(&status_in, 0, sizeof(status_in));
     clawd_rng_seed(&rng, now_ms() ^ 0xD1EC7u);
     last_engagement = now_ms();
     apply_minimal(minimal_mode());
@@ -658,6 +674,34 @@ static void run_corner(uint32_t now) {
     if (settled(now)) go(B_HOME);
 }
 
+// Status mode, once a turn is done: jumping happy, after whatever act is
+// playing (run_corner plays a pending reaction once he's free).
+static void cheer_done(void) {
+    if (beat != B_HOME && beat != B_CORNER) return;
+    react_anim = "jumping happy";
+    react_times = 1;
+    react_at = now_ms();
+    if (beat != B_CORNER) go(B_CORNER);
+}
+
+// Work out what Claude is doing; on a change, tell the status line, set the
+// corner's autonomy and cheer when a turn is done.
+static void update_status(uint32_t now, int activity) {
+    ClawdStatus s = STATUS_IDLE;
+    if (status_on && !minimal) {
+        status_in.now = now;
+        status_in.alert = attention_on;
+        status_in.activity = activity;
+        s = clawd_status(&status_in);
+    }
+    if (s == status) return;
+    status = s;
+    Serial.printf("[%lu] status: %s\n", (unsigned long)now, clawd_status_name(s));
+    ui_set_claude_status(s);
+    mascot_autonomy(beat == B_HOME && autonomy_wanted());
+    if (s == STATUS_DONE) cheer_done();
+}
+
 static void run_home(uint32_t now) {
     if (minimal) return;
     if (idle_is_asleep()) return;                 // nobody's looking
@@ -668,8 +712,14 @@ static void run_home(uint32_t now) {
     const bool live = ui_meters_live();
     QuietInput q = { now, last_engagement, signals_hooks_seen(), window_not_started, live };
     if (screensaver_ready(&q, &clawd_tuning())) { go(B_SCREENSAVER); return; }
-    if (live && signals_hooks_seen() && show_gate_ready(&show_gate, now, &clawd_tuning()))
+    if (live && signals_hooks_seen() && show_gate_ready(&show_gate, now, &clawd_tuning())) {
         go(B_SHOW);
+        return;
+    }
+    // Status mode: the state's act, looped. snappy skips the idle lead-in so
+    // it reads as one loop; shows and the screensaver above come first.
+    const char* loop = status == STATUS_WORKING ? "laptop" : status == STATUS_THINKING ? "magnifier" : NULL;
+    if (loop && mascot_seated() && mascot_act(loop, 1, true)) go(B_CORNER);
 }
 
 void director_tick(void) {
@@ -678,6 +728,8 @@ void director_tick(void) {
     show_gate_update(&show_gate, now, activity, &clawd_tuning());
     // Tool calls flowing (PostToolUse) are hook events too: you're working.
     if (activity > 0) last_engagement = now;
+    if (activity > 0) { status_in.have_active = true; status_in.active_at = now; }
+    update_status(now, activity);
     face_tick();
 
     switch (beat) {

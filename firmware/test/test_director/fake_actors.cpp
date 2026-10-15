@@ -69,9 +69,13 @@ bool mascot_in_attention(void) {
 }
 void mascot_autonomy(bool on) { m_autonomy = on; if (on && m_mode == M_SEATED) m_seated_since = now(); }
 
-bool mascot_act(const char*, uint8_t times, bool, uint16_t speed_pct) {
+const char* fake_last_act = NULL;
+bool fake_mascot_autonomy(void) { return m_autonomy; }
+
+bool mascot_act(const char* name, uint8_t times, bool, uint16_t speed_pct) {
     if (m_minimal) return false;
     if (!(m_mode == M_SEATED || (m_mode == M_ACT && m_act_auto))) return false;
+    fake_last_act = name;
     m_mode = M_ACT; m_act_auto = false;
     m_until = now() + scaled(1200 * (times ? times : 1), speed_pct);
     return true;
@@ -231,6 +235,7 @@ void face_look_at_x(int, uint32_t hold_ms) { f_busy_until = now() + hold_ms + 30
 // ─── The situation ───────────────────────────────────────────────────────────
 bool ui_meters_live(void) { return world.meters_live; }
 void ui_set_alert_text(const char*) {}
+void ui_set_claude_status(ClawdStatus) {}
 bool idle_is_asleep(void) { return world.asleep; }
 bool minimal_mode(void) { return false; }
 int  usage_rate_base_group(void) { return RATE_ACTIVE; }
