@@ -269,9 +269,15 @@ jobs:
           rm -f dist/*-"$TAG".json   # per-env sidecars, folded into manifest.json
           (cd dist && sha256sum -- * > SHA256SUMS)
           cat dist/manifest.json
+      - name: Release notes from CHANGELOG.md
+        # The tag's "## vX.Y.Z" section, which ends with its compare link.
+        run: |
+          awk -v tag="$TAG" '/^## /{on = ($2 == tag); next} on' CHANGELOG.md > release-notes.md
+          test -s release-notes.md || { echo "::error::CHANGELOG.md has no '## $TAG' section"; exit 1; }
+          cat release-notes.md
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           files: dist/*
-          generate_release_notes: true
+          body_path: release-notes.md
           prerelease: ${{ contains(github.ref_name, '-') }}
           fail_on_unmatched_files: true

@@ -20,6 +20,7 @@ which the desktop app's update check skips. See existing tags with
 ```
 Release checks:
 - [ ] main is green: firmware.yml and desktop.yml passed on the commit
+- [ ] CHANGELOG.md has a `## vX.Y.Z` section for the tag: it becomes the release text, and release.yml fails without it
 - [ ] Every hardware env has a DISPLAY_NAMES entry in tools/ci/make_manifest.py
 - [ ] python3 tools/packaging/make_icons.py --check   (icons match the firmware art)
 - [ ] python3 -m unittest discover -s tools/ci/tests
