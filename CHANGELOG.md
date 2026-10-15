@@ -8,6 +8,39 @@ to the v2.1.0 this fork is based on, is in
 
 Each release's section below is also its GitHub release text.
 
+## v2.4.0
+
+Firmware only: the desktop app is the same as v2.3.1. Update the board from
+the app's **Flash** page.
+
+### What's Changed
+
+* **The full-size Clawd, everywhere, on the ESP32-C6-Touch-AMOLED-2.16.**
+  The C6 has no PSRAM for the full-size Clawd's buffers, so v2.2.0 drew his
+  scenes straight to the panel on a black screen, and the rest still fell
+  back to the corner. A new `direct_sprite` module draws any full-size Clawd
+  straight to the panel and keeps him in front of the meters, as on S3
+  boards: only his coloured cells are drawn, the cells he leaves go back to
+  the display library to redraw the meters, and after every redraw he is
+  painted over it again. All three full-size Clawds use it now:
+  * **Alerts:** when Claude needs you, the corner Clawd walks off and the
+    big one walks on, waving and pointing at you over the meters, with the
+    alert's line still readable below him. A tap sends him off. Before, he
+    only waved from his corner seat.
+  * **Shows and calm dips:** the scenes play in front of the meters, which
+    stay visible behind him, instead of on a black screen.
+  * **Lurk trips:** now and then he walks off and peeks back in from the
+    right edge, full size. The C6 skipped these before.
+
+  Smooth, with no flicker or leftovers, including rotating the board in the
+  middle of any of them. One 8 KB buffer serves all three, since only one
+  Clawd is ever on screen. ([383a66d](https://github.com/Faith012/Clawdmeter/commit/383a66d))
+
+Tested on an ESP32-C6-Touch-AMOLED-2.16. Other boards are unchanged: the
+mode only turns on for boards checked on hardware (`direct_performer`).
+
+**Full Changelog**: https://github.com/Faith012/Clawdmeter/compare/v2.3.1...v2.4.0
+
 ## v2.3.1
 
 Firmware only: the desktop app is the same as v2.3.0. Update the board from
