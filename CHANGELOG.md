@@ -33,8 +33,11 @@ the app's **Flash** page.
     right edge, full size. The C6 skipped these before.
 
   Smooth, with no flicker or leftovers, including rotating the board in the
-  middle of any of them. One 8 KB buffer serves all three, since only one
-  Clawd is ever on screen. ([383a66d](https://github.com/Faith012/Clawdmeter/commit/383a66d))
+  middle of any of them: he is written into each band of the screen before
+  it is sent, so the meters never flash through him. One 8 KB buffer serves
+  all three, since only one Clawd is ever on screen.
+  ([383a66d](https://github.com/Faith012/Clawdmeter/commit/383a66d),
+  [2bfd881](https://github.com/Faith012/Clawdmeter/commit/2bfd881))
 
 Tested on an ESP32-C6-Touch-AMOLED-2.16. Other boards are unchanged: the
 mode only turns on for boards checked on hardware (`direct_performer`).
