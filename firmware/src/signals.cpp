@@ -36,19 +36,27 @@ SignalsUpdate signals_ingest_at(const UsageData* d, uint32_t now_ms) {
     const bool real_sample = d->ok && !d->replay;
     u.session_reset = usage_rate_sample_at(now_ms, d->session_pct, !real_sample);
 
-    if (d->has_event_seq) {
+    if (!d->has_event_seq && !have_seq && d->valid) {
+        // No event rides along (the app drops one a minute after it happened),
+        // so nothing stale is pending: the next seq is new and fires. Seqs
+        // start at 1, so 0 matches none of them.
+        have_seq = true;
+        last_seq = 0;
+    } else if (d->has_event_seq) {
         hooks_seen = true;
         if (!have_seq) {
             have_seq = true;                 // baseline, don't react
             last_seq = d->event_seq;
         } else if (d->event_seq != last_seq) {
+            // A new seq fires whatever the payload's `rp`: the app sends every
+            // live event in a replay payload (its usage numbers are cached, so
+            // `rp` keeps them out of the rate math), and a true replay carries
+            // the seq the device already has.
             last_seq = d->event_seq;
-            if (!d->replay) {
-                u.event_fired = true;
-                u.event = d->event;
-                u.event_seq = d->event_seq;
-                last_event = d->event;
-            }
+            u.event_fired = true;
+            u.event = d->event;
+            u.event_seq = d->event_seq;
+            last_event = d->event;
         }
     }
 

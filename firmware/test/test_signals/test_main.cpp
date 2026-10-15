@@ -46,15 +46,31 @@ static void test_first_seq_is_baseline_then_fires_once(void) {
     TEST_ASSERT_FALSE(signals_ingest_at(&d, 3000).event_fired);
 }
 
-static void test_replay_never_fires(void) {
+// The app sends live events in `rp` payloads (its usage numbers are cached):
+// a new seq fires there too, once; the heartbeats replaying it don't.
+static void test_live_event_in_a_replay_payload_fires_once(void) {
     UsageData d = parse("{\"s\":1,\"e\":\"p\",\"es\":1}");
     signals_ingest_at(&d, 1000);
-    d = parse("{\"s\":1,\"e\":\"b\",\"es\":2,\"rp\":1}");
+    d = parse("{\"s\":1,\"e\":\"s\",\"es\":2,\"rp\":1}");
     SignalsUpdate u = signals_ingest_at(&d, 2000);
     TEST_ASSERT_TRUE(u.replay);
-    TEST_ASSERT_FALSE(u.event_fired);
-    // ...and the replayed seq is consumed, so the live copy doesn't fire late.
-    d = parse("{\"s\":1,\"e\":\"b\",\"es\":2}");
+    TEST_ASSERT_TRUE(u.event_fired);
+    TEST_ASSERT_EQUAL_CHAR('s', u.event);
+    TEST_ASSERT_FALSE(signals_ingest_at(&d, 3000).event_fired);   // a heartbeat replaying it
+    d = parse("{\"s\":1,\"e\":\"s\",\"es\":2}");                   // the next poll carrying it
+    TEST_ASSERT_FALSE(signals_ingest_at(&d, 4000).event_fired);
+}
+
+// After a reboot or reconnect, a payload with no event says nothing stale is
+// pending, so the first seq after it is live and fires (a Stop right after
+// the device came back used to be swallowed as the baseline).
+static void test_first_seq_after_an_eventless_payload_fires(void) {
+    UsageData d = parse("{\"s\":1,\"a\":2,\"ok\":true}");
+    TEST_ASSERT_FALSE(signals_ingest_at(&d, 1000).event_fired);
+    d = parse("{\"s\":1,\"e\":\"s\",\"es\":8,\"rp\":1}");
+    SignalsUpdate u = signals_ingest_at(&d, 2000);
+    TEST_ASSERT_TRUE(u.event_fired);
+    TEST_ASSERT_EQUAL_CHAR('s', u.event);
     TEST_ASSERT_FALSE(signals_ingest_at(&d, 3000).event_fired);
 }
 
@@ -119,7 +135,8 @@ int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_old_daemon_payload_fires_nothing);
     RUN_TEST(test_first_seq_is_baseline_then_fires_once);
-    RUN_TEST(test_replay_never_fires);
+    RUN_TEST(test_live_event_in_a_replay_payload_fires_once);
+    RUN_TEST(test_first_seq_after_an_eventless_payload_fires);
     RUN_TEST(test_seq_restart_still_fires);
     RUN_TEST(test_activity_lift_in_group);
     RUN_TEST(test_replay_skips_rate_but_keeps_activity);
