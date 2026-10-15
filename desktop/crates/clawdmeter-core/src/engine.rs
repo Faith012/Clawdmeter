@@ -466,9 +466,8 @@ impl Engine {
         // away, like an event.
         let aa = self.settings.attention_anim.seconds();
         let sm = u8::from(self.settings.status_mode);
-        let prefs_changed = self.sent_lv != Some(self.settings.liveliness)
-            || self.sent_aa != Some(aa)
-            || self.sent_sm != Some(sm);
+        let prefs_changed =
+            self.sent_lv != Some(self.settings.liveliness) || self.sent_aa != Some(aa) || self.sent_sm != Some(sm);
 
         let (mut payload, kind) = if self.logged_out {
             if !(self.fresh_poll || self.attention.pending()) {
