@@ -20,8 +20,10 @@ bool direct_sprite_init(DirectSprite* s, int cell, int org_x, int org_y, int col
     s->cols = cols;
     s->rows = rows;
     const size_t n = (size_t)cols * rows;
-    s->drawn = (uint8_t*)heap_caps_calloc(n, 1, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-    s->next = (uint8_t*)heap_caps_calloc(n, 1, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    s->drawn = (uint8_t*)heap_caps_malloc(n, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    s->next = (uint8_t*)heap_caps_malloc(n, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    if (s->drawn) memset(s->drawn, 0, n);
+    if (s->next) memset(s->next, 0, n);
     const size_t px = (size_t)cols * cell * cell;
     if (px > strip_px) {
         heap_caps_free(strip);
