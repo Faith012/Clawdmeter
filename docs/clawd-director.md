@@ -125,7 +125,8 @@ so a calm dip doesn't reset the show's no-repeat memory).
 
 Small reactions on the meters, from `home` or `corner`:
 
-- **Noticing**: `e:"p"` or `e:"b"`. He points once (anticipation). From the
+- **Noticing**: `e:"p"` or `e:"b"`. He points once (anticipation); not in
+  status mode, where the thinking act starts at once instead. From the
   screensaver the same event wakes him (`face-home` with the blink).
 - **Long-turn wave**: `e:"s"` when the turn (first prompt to stop) ran at
   least 2 min. He waves once.

@@ -99,7 +99,7 @@ static void test_status_mode_shows_what_claude_is_doing(void) {
     SignalsUpdate sig = no_signal();
     sig.event_fired = true; sig.event = 'p'; sig.event_seq = 1;
     send(d, sig);
-    run_for(4000);                                // he points, then thinks
+    run_for(4000);                                // thinking at once, no noticing point
     TEST_ASSERT_EQUAL(STATUS_THINKING, status);
     TEST_ASSERT_EQUAL_STRING("magnifier", fake_last_act);
     world.activity = 2;

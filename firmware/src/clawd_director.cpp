@@ -382,8 +382,9 @@ void director_on_payload(const UsageData* d, const SignalsUpdate* sig) {
             resume_screensaver = false;       // you're back
             if (beat == B_SCREENSAVER) {
                 to_meters(true);              // he notices, the face drops
-            } else {
+            } else if (!status_on) {
                 // Anticipation: he turns and points before anything else.
+                // In status mode the thinking act says it, without the wait.
                 react("pointing", 1);
             }
         } else if (sig->event == 's' && wave && !status_on) {   // status mode cheers instead
