@@ -890,19 +890,21 @@ mod tests {
         let w = write(&mut e, T0 + 11).unwrap();
         assert_eq!((w.kind, w.payload.rp, w.payload.s), (WriteKind::Poll, None, Some(16)));
 
-        // Tool calls raise `a`, sent at most every 5 s.
+        // The turn's first tool call goes out right away as `w`; the rest
+        // only raise `a`, sent at most every 5 s.
         for i in 0..5 {
             e.on_hook_event(&ev(T0 + 11 + i, "PostToolUse"), T0 + 11 + i);
         }
-        assert!(write(&mut e, T0 + 14).is_none());
-        let w = write(&mut e, T0 + 15).unwrap();
-        assert_eq!(w.payload.a, Some(2));
-        // `e` keeps riding along but doesn't trigger writes by itself.
-        assert_eq!(w.payload.es, Some(1));
+        let w = write(&mut e, T0 + 14).unwrap();
+        assert_eq!(
+            (w.kind, w.payload.e.as_deref(), w.payload.es, w.payload.a),
+            (WriteKind::Event, Some("w"), Some(2), Some(2))
+        );
+        assert!(write(&mut e, T0 + 15).is_none(), "more tool calls, same level: nothing new");
 
         e.on_hook_event(&ev(T0 + 30, "Stop"), T0 + 30);
         let w = write(&mut e, T0 + 30).unwrap();
-        assert_eq!((w.payload.e.as_deref(), w.payload.es), (Some("s"), Some(2)));
+        assert_eq!((w.payload.e.as_deref(), w.payload.es), (Some("s"), Some(3)));
         assert_eq!(e.poll_due(T0 + 40), None, "polled at T0+11: gap until T0+131");
         assert_eq!(e.poll_due(T0 + 131), Some(PollReason::AfterStop));
 

@@ -40,7 +40,7 @@ seconds) and sends `x` if the device still shows it.
 | `c` | `1` = the reset chime may sound. |
 | `ok` | `false` alone = no usable account data; do not treat this as a zero reading. |
 | `b`, `m`, `x` | Attention: alert chime, message (ASCII), end the alert. The app sends a fixed line per alert kind in `m`: `Question for you`, `Permission needed!` (also for other notification types), `Waiting for you!` (idle) or `MCP request!`; the test alert sends `Clawdmeter test alert`. The firmware shows whatever `m` it gets. |
-| `a`, `e`, `es`, `n` | Fast clock: activity 0–3, latest hook event (`p` prompt, `s` stop, `b` back after a gap) and its sequence number, active sessions. |
+| `a`, `e`, `es`, `n` | Fast clock: activity 0–3, latest hook event (`p` prompt, `s` stop, `b` back after a gap, `w` the turn's first tool call) and its sequence number, active sessions. Firmware ignores codes it doesn't know. |
 | `rp` | `1` = a heartbeat replay, not a fresh poll; the rate math skips it. |
 | `lv` | How lively Clawd is, `1` (No-nonsense) to `5` (All-nonsense); `3` is the default. Sent with every data payload and right away when the setting changes. The device stores the last value in NVS, so it applies from boot before the app connects; absent = keep the stored value. |
 | `sm` | Status mode: `1` (the default) Clawd and the status line follow Claude Code (thinking, working, done, limit), `0` off. Sent like `lv` and stored the same way; absent = keep the stored value. |

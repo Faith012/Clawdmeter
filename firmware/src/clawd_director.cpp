@@ -363,6 +363,16 @@ void director_on_payload(const UsageData* d, const SignalsUpdate* sig) {
         const bool wave = turn_on_event(&turn, sig->event, now_ms(), &clawd_tuning());
         if (sig->event == 'p' || sig->event == 'b') { status_in.have_prompt = true; status_in.prompt_at = now_ms(); }
         if (sig->event == 's')                      { status_in.have_stop = true;   status_in.stop_at = now_ms(); }
+        if (sig->event == 'w') {                    // the turn's first tool call
+            status_in.knows_work = true;
+            status_in.have_work = true;
+            status_in.work_at = now_ms();
+            // Its prompt may have shared a payload with it and been missed: a
+            // `w` with no prompt since the last Stop opens the turn itself.
+            const bool turn_open = status_in.have_prompt &&
+                (!status_in.have_stop || (int32_t)(status_in.prompt_at - status_in.stop_at) > 0);
+            if (!turn_open) { status_in.have_prompt = true; status_in.prompt_at = now_ms(); }
+        }
         if (minimal) return;
         if (sig->event == 'p' || sig->event == 'b') {
             resume_screensaver = false;       // you're back

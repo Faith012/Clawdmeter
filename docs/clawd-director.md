@@ -442,13 +442,18 @@ priority first:
 |---|---|---|---|
 | limit | `st` is `limited` | sits still | `Limit reached` |
 | waiting | an alert is up | the attention beat | the alert |
-| working | `a` > 0 and no Stop since the last prompt | `laptop`: out once, then typing until the state ends | `Claude is working…` |
+| working | `a` > 0, no Stop since the last prompt, and (once the app has sent one) an `e:"w"` since it | `laptop`: out once, then typing until the state ends | `Claude is working…` |
 | thinking | a prompt (`e:"p"`/`"b"`), no tool calls now, no Stop since | `magnifier`, repeated | `Claude is thinking…` |
 | done | a Stop in the last 5 min (`STATUS_DONE_MS`) | `jumping happy` once, then still | `Done` |
 | idle | none of these | idle acts as usual | the whimsical verbs |
 
 - A Stop at or after the last prompt ends the turn even while `a` still
-  counts that minute's tool calls. An open turn with nothing for 10 min
+  counts that minute's tool calls. For the same reason a new prompt is
+  thinking, not working, until the turn's first tool call: the app marks it
+  with `e:"w"` (once per prompt). A `w` with no prompt since the last Stop
+  opens the turn itself (its prompt may have shared a payload with it and
+  been missed). Until a `w` ever arrives (an older app), `a` > 0 alone means
+  working. An open turn with nothing for 10 min
   (`STATUS_TURN_STALE_MS`) is over: a turn ended with Esc sends no Stop.
 - `run_home` holds the state's act (`mascot_act_held`: the act's loop
   region repeats until `mascot_act_release`, so the laptop comes out once

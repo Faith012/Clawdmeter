@@ -428,6 +428,22 @@ static void stop_outranks_lingering_activity(void) {
     TEST_ASSERT_EQUAL(STATUS_DONE, clawd_status(&in));
 }
 
+// Right after a prompt `a` still counts the last turn's tool calls: with an
+// app that sends `w`, that's thinking until this turn's first tool call.
+static void last_turns_activity_is_thinking_until_work(void) {
+    StatusInput in = status_at(10 * MIN);
+    in.have_prompt = true; in.prompt_at = 10 * MIN - 3 * SEC;
+    in.activity = 2;
+    in.knows_work = true;
+    in.have_work = true; in.work_at = 8 * MIN;      // the last turn's
+    TEST_ASSERT_EQUAL(STATUS_THINKING, clawd_status(&in));
+    in.work_at = 10 * MIN - 1 * SEC;                 // this turn's
+    TEST_ASSERT_EQUAL(STATUS_WORKING, clawd_status(&in));
+    in.knows_work = false;                           // an older app: `a` alone
+    in.have_work = false;
+    TEST_ASSERT_EQUAL(STATUS_WORKING, clawd_status(&in));
+}
+
 static void aborted_turn_goes_idle(void) {
     StatusInput in = status_at(0);
     in.have_prompt = true; in.prompt_at = 0;      // Esc: no Stop ever comes
@@ -485,6 +501,7 @@ int main(int, char**) {
     RUN_TEST(test_status_prompt_thinks_tools_work);
     RUN_TEST(test_status_stop_is_done_then_idle);
     RUN_TEST(stop_outranks_lingering_activity);
+    RUN_TEST(last_turns_activity_is_thinking_until_work);
     RUN_TEST(aborted_turn_goes_idle);
     RUN_TEST(wraps_around);
     return UNITY_END();

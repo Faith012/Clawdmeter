@@ -255,6 +255,10 @@ pub enum EventCode {
     Stop,
     /// `b`: a prompt after 10+ quiet minutes ("you're back").
     Back,
+    /// `w`: the turn's first tool call, once per prompt. The device's status
+    /// mode goes from thinking to working on it, rather than on `a`, which
+    /// still counts the last turn's tool calls for a minute.
+    Work,
 }
 
 impl EventCode {
@@ -264,6 +268,7 @@ impl EventCode {
             EventCode::Prompt => "p",
             EventCode::Stop => "s",
             EventCode::Back => "b",
+            EventCode::Work => "w",
         }
     }
 }
@@ -352,6 +357,9 @@ impl Activity {
     /// Feed one live event; returns its meaning.
     pub fn ingest(&mut self, ev: &HookEvent) -> Signal {
         let quiet_before = self.last_event_ts.map(|t| ev.ts - t);
+        // No tool call yet since the newest prompt: this one starts the work.
+        let first_tool_of_turn = ev.kind == HookKind::PostToolUse
+            && self.last_prompt_ts.is_some_and(|p| ev.ts >= p && self.last_tool_ts.is_none_or(|t| t < p));
         self.record(ev);
         match ev.kind {
             HookKind::UserPromptSubmit => {
@@ -363,7 +371,12 @@ impl Activity {
                 self.bump(EventCode::Stop);
                 Signal::Stop
             }
-            HookKind::PostToolUse => Signal::Tool,
+            HookKind::PostToolUse => {
+                if first_tool_of_turn {
+                    self.bump(EventCode::Work);
+                }
+                Signal::Tool
+            }
             _ => Signal::Other,
         }
     }
@@ -460,13 +473,19 @@ mod tests {
         for i in 0..5 {
             a.ingest(&ev(t + i, "PostToolUse", "s1"));
         }
+        // The turn's first tool call marks the work once; the rest don't.
+        assert_eq!((a.latest, a.seq), (Some(EventCode::Work), 2));
         a.ingest(&ev(t + 5, "PostToolUse", "s2"));
         assert_eq!(a.level(t + 10), 2);
         assert_eq!(a.sessions_active(t + 10), 2);
         assert!(a.working(t + 10));
         assert_eq!(a.level(t + 70), 0);
         assert_eq!(a.ingest(&ev(t + 80, "Stop", "s1")), Signal::Stop);
-        assert_eq!((a.latest, a.seq), (Some(EventCode::Stop), 2));
+        assert_eq!((a.latest, a.seq), (Some(EventCode::Stop), 3));
+        // A tool call with no new prompt since (another session, an
+        // approval) doesn't mark work.
+        a.ingest(&ev(t + 85, "PostToolUse", "s2"));
+        assert_eq!(a.seq, 3);
         assert!(!a.working(t + 90));
         assert_eq!(a.sessions_active(t + 80 + 299), 1);
         assert_eq!(a.sessions_active(t + 80 + 300), 0);

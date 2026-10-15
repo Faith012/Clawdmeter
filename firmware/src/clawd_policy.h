@@ -273,6 +273,11 @@ struct StatusInput {
     bool     have_prompt; uint32_t prompt_at; // the last 'p' / 'b'
     bool     have_stop;   uint32_t stop_at;   // the last 's'
     bool     have_active; uint32_t active_at; // the last moment `a` was > 0
+    // `e:"w"`, the turn's first tool call (newer apps). Once the app has sent
+    // one, `a` only means working after a `w` since the prompt: right after a
+    // prompt `a` still counts the last turn's tool calls for a minute.
+    bool     knows_work;                      // a `w` has ever arrived
+    bool     have_work;   uint32_t work_at;   // the last `w`
 };
 ClawdStatus clawd_status(const StatusInput* in);
 const char* clawd_status_name(ClawdStatus s);   // for the serial log

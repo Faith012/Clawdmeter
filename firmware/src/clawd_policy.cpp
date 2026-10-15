@@ -295,7 +295,9 @@ ClawdStatus clawd_status(const StatusInput* in) {
     // the turn, even while `a` still counts that minute's tool calls.
     const bool stopped = in->have_stop && (!in->have_prompt || !before(in->stop_at, in->prompt_at));
     if (stopped) return in->now - in->stop_at < STATUS_DONE_MS ? STATUS_DONE : STATUS_IDLE;
-    if (in->activity > 0) return STATUS_WORKING;
+    const bool worked_this_turn = !in->knows_work || !in->have_prompt ||
+                                  (in->have_work && !before(in->work_at, in->prompt_at));
+    if (in->activity > 0 && worked_this_turn) return STATUS_WORKING;
     if (!in->have_prompt) return STATUS_IDLE;
     uint32_t last = in->prompt_at;
     if (in->have_active && before(last, in->active_at)) last = in->active_at;
