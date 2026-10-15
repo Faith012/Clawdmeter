@@ -5,6 +5,7 @@
 #include "perf.h"
 #include "splash_geometry.h"
 #include "hal/board_caps.h"
+#include "hal/display_hal.h"
 #include <Arduino.h>
 #include <string.h>
 #include <esp_heap_caps.h>
@@ -24,7 +25,19 @@ static int       dim = GRID * 8;               // the buffer is dim x dim px
 static lv_obj_t* img = NULL;
 static uint8_t*  buf = NULL;                   // planar RGB565A8: colour plane, then alpha
 static lv_image_dsc_t dsc;
-static bool      shown = false;                // img not hidden
+static bool      shown = false;                // img not hidden (direct: he's on the panel)
+
+// Direct mode, for boards without PSRAM: no screen-sized buffer. He's drawn
+// straight to the panel one grid row at a time, and the meters are hidden
+// while he's on, so LVGL has nothing under him to redraw. Whatever LVGL does
+// flush there (a rotation's full redraw) is painted over again at once
+// (performer_note_flush).
+static uint16_t* strip = NULL;                 // one grid row: dim x cell px
+static lv_obj_t* host = NULL;                  // the screen whose children he hides
+static int       org_x = 0, org_y = 0;         // panel position of grid cell (0,0)
+#define HIDDEN_BY_PERFORMER LV_OBJ_FLAG_USER_1
+
+static bool ready(void) { return img || strip; }
 
 // ─── Mood groups ─────────────────────────────────────────────────────────────
 #define GROUP_COUNT 4
@@ -114,7 +127,84 @@ static void set_hidden(void* on) {
     else    lv_obj_clear_flag(img, LV_OBJ_FLAG_HIDDEN);
 }
 
+// Direct mode: hide the meters (only what was showing) or bring them back.
+static void hide_meters(bool hide) {
+    const uint32_t n = lv_obj_get_child_count(host);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t* k = lv_obj_get_child(host, i);
+        if (hide && !lv_obj_has_flag(k, LV_OBJ_FLAG_HIDDEN)) {
+            lv_obj_add_flag(k, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(k, HIDDEN_BY_PERFORMER);
+        } else if (!hide && lv_obj_has_flag(k, HIDDEN_BY_PERFORMER)) {
+            lv_obj_clear_flag(k, HIDDEN_BY_PERFORMER);
+            lv_obj_clear_flag(k, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+    if (hide) lv_refr_now(NULL);                   // black before his first frame
+}
+
+// Direct mode: push grid cells [gx0, gx1) x [gy0, gy1) to the panel, one
+// grid row per write, skipping rows that hang past the panel.
+static void blit_cells(int gx0, int gy0, int gx1, int gy1) {
+    if (gx1 <= gx0) return;
+    const int H = board_caps().height;
+    const int w = (gx1 - gx0) * cell;
+    for (int gy = gy0; gy < gy1; gy++) {
+        const int y = org_y + gy * cell;
+        if (y < 0 || y + cell > H) continue;
+        for (int gx = gx0; gx < gx1; gx++) {
+            const uint8_t code = drawn_cells[gy * GRID + gx];
+            const uint16_t c = (code && drawn_palette && code < CLAWD_PALETTE_SIZE) ? drawn_palette[code] : 0;
+            uint16_t* p = strip + (gx - gx0) * cell;
+            for (int i = 0; i < cell; i++) p[i] = c;
+        }
+        for (int d = 1; d < cell; d++) memcpy(strip + d * w, strip, w * 2);
+        display_hal_draw_bitmap(org_x + gx0 * cell, y, w, cell, strip);
+    }
+}
+
+static void render_direct(const uint8_t* cells, const uint16_t* palette) {
+    bool any = false;
+    for (int i = 0; i < GRID * GRID; i++) if (cells[i]) { any = true; break; }
+    const bool repaint_all = palette != drawn_palette;
+    int gx0 = GRID, gy0 = GRID, gx1 = -1, gy1 = -1;
+    for (int gy = 0; gy < GRID; gy++) {
+        for (int gx = 0; gx < GRID; gx++) {
+            const uint8_t code = cells[gy * GRID + gx];
+            if (code == drawn_cells[gy * GRID + gx] && !(repaint_all && code)) continue;
+            if (gx < gx0) gx0 = gx;
+            if (gx > gx1) gx1 = gx;
+            if (gy < gy0) gy0 = gy;
+            if (gy > gy1) gy1 = gy;
+        }
+    }
+    memcpy(drawn_cells, cells, sizeof(drawn_cells));
+    drawn_palette = palette;
+    cells_any = any;
+
+    if (any && !shown) {                          // he's coming on
+        hide_meters(true);
+        shown = true;
+        perf_begin(PERF_PERFORM);
+    }
+    if (shown) blit_cells(gx0, gy0, gx1 + 1, gy1 + 1);
+    if (!any && shown) {                          // gone: his last cells are black again
+        hide_meters(false);
+        shown = false;
+        perf_end(PERF_PERFORM);
+    }
+}
+
+void performer_note_flush(int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
+    if (!strip || !shown) return;
+    int gx0, gx1, gy0, gy1;
+    span_touch_cells(org_x, cell, GRID, x1, x2 + 1, &gx0, &gx1);
+    span_touch_cells(org_y, cell, GRID, y1, y2 + 1, &gy0, &gy1);
+    blit_cells(gx0, gy0, gx1, gy1);
+}
+
 static void render_cells(const uint8_t* cells, const uint16_t* palette) {
+    if (strip) { render_direct(cells, palette); return; }
     if (!buf || !img) return;
     bool any = false;
     for (int i = 0; i < GRID * GRID; i++) if (cells[i]) { any = true; break; }
@@ -284,10 +374,26 @@ void performer_init(lv_obj_t* parent, int feet_y) {
     cell = geo.cell;
     dim = geo.canvas_dim;
     const size_t bytes = (size_t)dim * dim * 3;
-    // PSRAM only: without it there's no room for a screen-sized sprite, and
-    // the director plays performances as corner acts.
+    int x0, x1;
+    panel_row_span(c.width, c.height, c.round_panel, feet_y, &x0, &x1);
+    // Without PSRAM there's no room for a screen-sized sprite: boards that
+    // allow it draw direct (one grid row, about 8 KB on a 480 panel); the
+    // rest, or if even that row fails, get performances as corner acts.
     buf = (uint8_t*)heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM);
-    if (!buf) { Serial.println("performer: no PSRAM, corner acts only"); return; }
+    if (!buf) {
+        if (c.direct_performer)
+            strip = (uint16_t*)heap_caps_malloc((size_t)dim * cell * 2, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        if (!strip) { Serial.println("performer: no PSRAM, corner acts only"); return; }
+        Serial.println("performer: no PSRAM, drawing direct");
+        host = parent;
+        memset(drawn_cells, 0, sizeof(drawn_cells));
+        org_x = ((c.width - dim) / 2) & ~1;      // even, as the panels' flush areas are
+        org_y = (feet_y - (ANCHOR_Y + CLAWD_ART_H) * cell) & ~1;
+        span_to_cells(org_x, cell, GRID, x0, x1, &stage_c0, &stage_c1);
+        pst = P_OFF;
+        dx = offstage_dx(-1);
+        return;
+    }
     memset(buf, 0, bytes);
     memset(drawn_cells, 0, sizeof(drawn_cells));
 
@@ -304,8 +410,6 @@ void performer_init(lv_obj_t* parent, int feet_y) {
     // His feet (art row 37) on the floor; centred across. The grid may hang
     // past the bottom edge; nothing is drawn there.
     lv_obj_set_pos(img, (c.width - dim) / 2, feet_y - (ANCHOR_Y + CLAWD_ART_H) * cell);
-    int x0, x1;
-    panel_row_span(c.width, c.height, c.round_panel, feet_y, &x0, &x1);
     span_to_cells((c.width - dim) / 2, cell, GRID, x0, x1, &stage_c0, &stage_c1);
     lv_obj_add_flag(img, LV_OBJ_FLAG_HIDDEN);
     shown = false;
@@ -313,7 +417,7 @@ void performer_init(lv_obj_t* parent, int feet_y) {
     dx = offstage_dx(-1);
 }
 
-bool performer_available(void) { return img != NULL; }
+bool performer_available(void) { return ready(); }
 
 // ─── Performer API ───────────────────────────────────────────────────────────
 void performer_place_offstage(int side) {
@@ -325,20 +429,20 @@ void performer_place_offstage(int side) {
 }
 
 void performer_walk_home(uint16_t spd) {
-    if (!stand_anim || !img) return;
+    if (!stand_anim || !ready()) return;
     if (dx == 0) { stand(); return; }
     pst = P_WALK;
     walk_start(stand_anim, GAIT_WALK, 0, spd);
 }
 
 void performer_walk_off(int side, uint16_t spd) {
-    if (!stand_anim || !img) return;
+    if (!stand_anim || !ready()) return;
     pst = P_WALK;
     walk_start(stand_anim, GAIT_WALK, offstage_dx(side), spd);
 }
 
 void performer_run_off(int side, uint16_t from_pct, uint16_t to_pct, uint32_t ramp) {
-    if (!stand_anim || !img) return;
+    if (!stand_anim || !ready()) return;
     pst = P_WALK;
     walk_start(stand_anim, GAIT_WALK, offstage_dx(side), from_pct);
     ramp_from = from_pct;
@@ -347,7 +451,7 @@ void performer_run_off(int side, uint16_t from_pct, uint16_t to_pct, uint32_t ra
 }
 
 void performer_perform(int idx, uint32_t loop_ms) {
-    if (!img) return;
+    if (!ready()) return;
     scene_start(clawd_anim_at(idx), loop_ms);
 }
 
@@ -355,7 +459,7 @@ static ClawdRng rng;
 static bool rng_seeded = false;
 
 void performer_perform_group(int group, uint32_t loop_ms, bool calm) {
-    if (!img) return;
+    if (!ready()) return;
     if (!rng_seeded) { clawd_rng_seed(&rng, millis() ^ 0x57A6E); rng_seeded = true; }
     if (group < 0 || group >= GROUP_COUNT) group = 0;
     const char* const* names = calm ? CALM_NAMES : GROUP_NAMES[group];
@@ -426,7 +530,7 @@ static void choreo_tick(uint32_t now) {
 }
 
 void performer_tick(void) {
-    if (!img || clawd_anim_count() == 0) return;
+    if (!ready() || clawd_anim_count() == 0) return;
     const uint32_t now = millis();
     switch (pst) {
     case P_WALK:

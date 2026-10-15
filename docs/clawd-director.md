@@ -15,7 +15,7 @@ what you want (see "A tap on the meters" below).
 | `firmware/src/clawd_director.{h,cpp}` | Owns the rooms and runs the beats. It is the only module that decides what Clawd does next. |
 | `firmware/src/clawd_policy.{h,cpp}` | Pure decision rules, unit-tested in `test/test_clawd_policy`: show gate and show group, screensaver gate, where attention returns to, how long a reaction waits for him, the corner seat's headroom, turn tracker, no-repeat picker, jitter, the resting face's rhythm, what a tap on the meters earns (the peek, how he sets off), where the face looks and how long it stays curious, and all tunables (`ClawdTuning`). |
 | `firmware/src/mascot.{h,cpp}` | Clawd on the meters: the corner Clawd in his seat, plus the full-size sprite used for the lurk trip and the attention walk-on. Does in-room secondary action (idle acts, lurk trips) when the director allows it. |
-| `firmware/src/performer.{h,cpp}` | Clawd performing on the meters: the official scenes at full size on a 60×60-cell grid, in front of the meters. He stands, walks on and off through either edge, or performs a scene. PSRAM only. |
+| `firmware/src/performer.{h,cpp}` | Clawd performing on the meters: the official scenes at full size on a 60×60-cell grid, in front of the meters. He stands, walks on and off through either edge, or performs a scene. An LVGL image with PSRAM; drawn straight to the panel on boards with `direct_performer` (below). |
 | `firmware/src/face.{h,cpp}` | The #198 face: a field on `lv_layer_top()` with the eyes as small LVGL rectangles on it. It is the screensaver and the held peek. |
 | `firmware/src/face_motion.{h,cpp}` | The face's rise and drop as a pure function of time (vertical only, one size: overshoot and settle, anticipation, follow-through; see "The face's motion"), unit-tested in `test/test_face_motion`. |
 | `firmware/src/field.{h,cpp}` | A flat-colour shape on an overlay layer (a rectangle plus two small extra rectangles) that redraws only the strips that change colour (see "Redraw cost and frame rate"). The face is a field. |
@@ -93,7 +93,7 @@ passed. Beat changes always print; every step prints too after
 |---|---|---|
 | `home` | default | Corner autonomy on: jittered idle gaps (±40 % of 10 / 7 / 5 / 3.5 s by mood), mood-picked acts, never the same act twice running, and lurk trips (PSRAM). Also checks the gates below. |
 | `corner` | notice, wave, joy, or after a transition | Waits for the commanded corner act or walk to finish, then `home`. |
-| `show` | `a == 3` held for 5 min; at most one per 15 min; hooks seen; meters live | Points at the bar (or, if he's out on a lurk trip, heads straight out), walks off left at 1.5×, walks back on full size at 1.5×, one scene (loop held 16 s, so about 20 s), waves, walks off left, and the corner Clawd walks back in to his seat. Without the performer (no PSRAM): points, then dances twice (jumps for joy twice when usage is Heavy) and waves, all in his seat. |
+| `show` | `a == 3` held for 5 min; at most one per 15 min; hooks seen; meters live | Points at the bar (or, if he's out on a lurk trip, heads straight out), walks off left at 1.5×, walks back on full size at 1.5×, one scene (loop held 16 s, so about 20 s), waves, walks off left, and the corner Clawd walks back in to his seat. Without the performer (no PSRAM and no `direct_performer`): points, then dances twice (jumps for joy twice when usage is Heavy) and waves, all in his seat. |
 | `screensaver` | 10 min with no engagement; needs hooks seen or a window that hasn't started; meters live | Walks off through the nearest edge (a lurk trip finishes its peek first), face rises and rests (blinks every 2–6 s, about one in five a double, glances where the far eye travels 1.5×). Every 3–5 min, a calm dip: the face drops onto the meters, he walks on, plays one calm scene (magnifier or walking, alternating) and walks off, then the face rises and he rests again. Without the performer the corner Clawd walks back to his seat, sits for the scene's length and walks off again. |
 | `face-home` | tap, prompt, button or attention while the screensaver face is up; a tap, attention or the end of its curiosity while the peek face is up | If woken by a prompt or tapped during a peek, he blinks first (noticing), then the face drops into the meters, and the corner hurries home at 1.5×. |
 | `run-home` | tap or attention during a performance; a tap, prompt, button or usage moving during a calm dip | The scene releases to the idle pose on the spot, holds 200 ms, and he runs off left, ramping from 1.5× to 3× over 400 ms. Once he's gone, the corner walks home at 1.5×. |
@@ -343,9 +343,16 @@ a board capability, with no NVS override, desktop setting, or serial toggle.
 - Corner Clawd: animated. Its buffer, sized for the largest corner act
   (jumping happy, 28×30 cells × 3 px, about 23 KB), falls back to internal RAM.
 - Face: plain LVGL objects, the same as on S3.
-- No performer (its buffer is about 690 KB): a show is corner acts (pointing,
-  dancing or jumping happy twice, a wave) and a calm dip is the corner Clawd
-  walking back to his seat for a while (see Beats).
+- Performer: no room for its buffer (about 690 KB). With the
+  `direct_performer` capability (the AMOLED-2.16 C6) he's drawn straight to
+  the panel instead: each frame repaints only the grid cells that changed,
+  one grid row per write from an 8 KB strip, and the meters are hidden while
+  he's on, so LVGL has nothing under him to redraw. Anything LVGL still
+  flushes there (a rotation's full redraw) he paints back over at once
+  (`performer_note_flush`, from the flush callback). Shows and calm dips then
+  look as they do on S3. Without the capability a show is corner acts
+  (pointing, dancing or jumping happy twice, a wave) and a calm dip is the
+  corner Clawd walking back to his seat for a while (see Beats).
 - No full-size sprite (about 250 KB), so there's no lurk trip, and attention
   is a wave and point in his seat (he walks back to it first if he's out),
   for the attention animation's time.

@@ -142,8 +142,9 @@ alerts expire after 30 seconds. C6 boards show the message without the
 full-size Clawd. Optional alert and reset chimes work on boards with an implemented audio output; those boards also ding once when they start.
 Boards with the **minimal display** capability keep the meters and a still
 Clawd, with no animated scenes. This is a board capability, not a user setting.
-C6 boards have no room for the full-size Clawd: their shows are acts in his
-corner seat.
+C6 boards have no room for the full-size Clawd's alert walk-on. The
+AMOLED-2.16 (C6) plays shows and calm dips full size; the AMOLED-1.8 (C6)
+plays them as acts in his corner seat.
 
 The status line rotates through Claude Code's whimsical thinking verbs when
 all is well. It shows **Waiting** without a connection, **No data** before a

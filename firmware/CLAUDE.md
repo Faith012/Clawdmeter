@@ -26,7 +26,8 @@ pins and hardware gotchas, which loads when you work in that folder.
   `clawd_policy.cpp` holds the pure rules and every timing (`ClawdTuning`,
   `clawd_tuning_fast()` under `SIM_FAST`). There is no separate stage:
   `performer.cpp` plays the full-size scenes on the meters, in front of the
-  panels (PSRAM boards; C6 plays corner acts instead). Liveliness (`lv`,
+  panels (PSRAM boards; without PSRAM, boards with `direct_performer` draw
+  him straight to the panel and the rest play corner acts). Liveliness (`lv`,
   1 No-nonsense … 5 All-nonsense, kept in NVS by `clawd_prefs.cpp`) acts
   only through `clawd_tuning_scaled()`; add new behaviour to the tuning
   rather than checking the level elsewhere. The module map, every beat, the

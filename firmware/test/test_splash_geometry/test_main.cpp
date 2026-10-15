@@ -91,6 +91,25 @@ static void span_in_grid_cells() {
     CHECK(c1 == c0);
 }
 
+static void span_touching_grid_cells() {
+    int c0, c1;
+    // 60-cell grid of 8 px cells starting at pixel 0.
+    span_touch_cells(0, 8, 60, 10, 17, &c0, &c1);
+    CHECK(c0 == 1 && c1 == 3);                // [10, 17) touches cells 1 and 2
+    span_touch_cells(0, 8, 60, 16, 24, &c0, &c1);
+    CHECK(c0 == 2 && c1 == 3);                // exactly cell 2
+    span_touch_cells(0, 8, 60, 0, 480, &c0, &c1);
+    CHECK(c0 == 0 && c1 == 60);
+    span_touch_cells(-40, 8, 60, -100, 5, &c0, &c1);
+    CHECK(c0 == 0 && c1 == 6);                // clamped at the grid's first cell
+    span_touch_cells(0, 8, 60, 470, 600, &c0, &c1);
+    CHECK(c0 == 58 && c1 == 60);              // clamped at its last
+    span_touch_cells(0, 8, 60, 300, 100, &c0, &c1);
+    CHECK(c1 == c0);                          // empty span: no cells
+    span_touch_cells(0, 8, 60, 500, 600, &c0, &c1);
+    CHECK(c1 == c0);                          // past the grid: no cells
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(should_render_full_size_with_no_scaling_when_psram_present);
@@ -101,5 +120,6 @@ int main() {
     RUN_TEST(round_panel_is_visible_along_the_chord);
     RUN_TEST(sprites_walk_on_and_off_at_the_circle_not_the_bounding_box);
     RUN_TEST(span_in_grid_cells);
+    RUN_TEST(span_touching_grid_cells);
     return UNITY_END();
 }
