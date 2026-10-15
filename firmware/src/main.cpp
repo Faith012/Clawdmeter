@@ -221,6 +221,11 @@ static void check_serial_cmd() {
                 if (cmd_buf[14] == ' ') attn_anim_set(atoi(cmd_buf + 15));
                 Serial.printf("{\"attention_anim\":%d}\n", attn_anim_get());
             }
+            else if (strcmp(cmd_buf, "status_mode") == 0 || strncmp(cmd_buf, "status_mode ", 12) == 0) {
+                // QA: `status_mode [0|1]` (until the app sends its own).
+                if (cmd_buf[11] == ' ') status_mode_set(atoi(cmd_buf + 12) != 0);
+                Serial.printf("{\"status_mode\":%d}\n", status_mode_get() ? 1 : 0);
+            }
             else if (strncmp(cmd_buf, "clawd ", 6) == 0) {
                 const bool ok = director_debug(cmd_buf + 6);
                 Serial.printf("{\"clawd\":\"%s\",\"ok\":%s}\n", cmd_buf + 6, ok ? "true" : "false");
@@ -498,6 +503,7 @@ void loop() {
                 idle_note_activity();
             if (usage.liveliness > 0) liveliness_set(usage.liveliness);
             if (usage.attn_anim_s >= 0) attn_anim_set(usage.attn_anim_s);
+            if (usage.status_mode >= 0) status_mode_set(usage.status_mode == 1);
             director_on_payload(&usage, &sig);
             if (usage.alert_msg[0]) {
                 Serial.println("attention — mascot");

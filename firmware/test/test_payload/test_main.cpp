@@ -97,6 +97,18 @@ static void test_attention_animation(void) {
     TEST_ASSERT_EQUAL_INT(120, d.attn_anim_s);
 }
 
+static void test_status_mode(void) {
+    UsageData d;
+    TEST_ASSERT_TRUE(payload_parse("{\"s\":1,\"ok\":true}", &d, nullptr));
+    TEST_ASSERT_EQUAL_INT(-1, d.status_mode);      // absent: keep the saved setting
+    TEST_ASSERT_TRUE(payload_parse("{\"sm\":0}", &d, nullptr));
+    TEST_ASSERT_EQUAL_INT(0, d.status_mode);
+    TEST_ASSERT_TRUE(payload_parse("{\"sm\":1}", &d, nullptr));
+    TEST_ASSERT_EQUAL_INT(1, d.status_mode);
+    TEST_ASSERT_TRUE(payload_parse("{\"sm\":7}", &d, nullptr));
+    TEST_ASSERT_EQUAL_INT(1, d.status_mode);
+}
+
 static void test_liveliness(void) {
     UsageData d;
     TEST_ASSERT_TRUE(payload_parse("{\"ok\":true}", &d, nullptr));
@@ -124,6 +136,7 @@ int main(void) {
     RUN_TEST(test_fast_clock_clamps);
     RUN_TEST(test_liveliness);
     RUN_TEST(test_attention_animation);
+    RUN_TEST(test_status_mode);
     RUN_TEST(test_long_strings_truncate);
     return UNITY_END();
 }

@@ -73,6 +73,8 @@ bool payload_parse(const char* json, UsageData* out, const char** err) {
         int v = aa | 120;
         d.attn_anim_s = (int16_t)(v < 0 ? 0 : v > 120 ? 120 : v);
     }
+    JsonVariant sm = doc["sm"];
+    d.status_mode = sm.isNull() ? -1 : ((sm | 1) ? 1 : 0);
 
     d.ok = doc["ok"] | false;
     d.valid = true;
