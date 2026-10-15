@@ -674,12 +674,7 @@ pub(crate) fn for_account(cmd: &mut Command, config_dir: &Path, home: &Path) {
     } else {
         cmd.env("CLAUDE_CONFIG_DIR", config_dir);
     }
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
-    }
+    crate::platform::no_console(cmd);
 }
 
 /// Build the `/usage` command for one account.

@@ -2,8 +2,21 @@
 
 use std::process::{Command, Stdio};
 
+/// Run a console program without a console window. The app is a GUI
+/// process on Windows, so each `reg.exe` or `claude` it starts would
+/// otherwise flash a window of its own and steal focus.
+pub fn no_console(cmd: &mut Command) -> &mut Command {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
+}
+
 fn run(cmd: &str, args: &[&str]) -> Option<String> {
-    let out = Command::new(cmd).args(args).stdin(Stdio::null()).stderr(Stdio::null()).output().ok()?;
+    let out = no_console(&mut Command::new(cmd)).args(args).stdin(Stdio::null()).stderr(Stdio::null()).output().ok()?;
     out.status.success().then(|| String::from_utf8_lossy(&out.stdout).into_owned())
 }
 

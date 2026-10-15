@@ -212,7 +212,7 @@ pub fn entry_path(home: &Path, mode: LaunchMode) -> Option<PathBuf> {
 const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
 
 fn run_quiet(cmd: &str, args: &[&str]) -> io::Result<bool> {
-    let st = Command::new(cmd)
+    let st = crate::platform::no_console(&mut Command::new(cmd))
         .args(args)
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -316,7 +316,7 @@ pub fn is_stale(home: &Path, mode: LaunchMode, want: &Path) -> bool {
 
 /// The current `Clawdmeter` Run value (Windows), if any.
 fn windows_run_value() -> Option<String> {
-    let out = Command::new("reg")
+    let out = crate::platform::no_console(&mut Command::new("reg"))
         .args(["query", RUN_KEY, "/v", RUN_VALUE])
         .stdin(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
