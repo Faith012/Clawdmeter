@@ -276,7 +276,7 @@ struct StatusInput {
     // `e:"w"`, the turn's first tool call (newer apps). Once the app has sent
     // one, `a` only means working after a `w` since the prompt: right after a
     // prompt `a` still counts the last turn's tool calls for a minute.
-    bool     knows_work;                      // a `w` has ever arrived
+    bool     knows_work;                      // the app sends `w` (it sent `sm` or a `w`)
     bool     have_work;   uint32_t work_at;   // the last `w`
 };
 ClawdStatus clawd_status(const StatusInput* in);

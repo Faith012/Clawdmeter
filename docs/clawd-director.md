@@ -452,8 +452,8 @@ priority first:
   thinking, not working, until the turn's first tool call: the app marks it
   with `e:"w"` (once per prompt). A `w` with no prompt since the last Stop
   opens the turn itself (its prompt may have shared a payload with it and
-  been missed). Until a `w` ever arrives (an older app), `a` > 0 alone means
-  working. An open turn with nothing for 10 min
+  been missed). An app that sends `sm` also sends `w`; from an older app
+  (no `sm`, no `w` yet), `a` > 0 alone means working. An open turn with nothing for 10 min
   (`STATUS_TURN_STALE_MS`) is over: a turn ended with Esc sends no Stop.
 - `run_home` holds the state's act (`mascot_act_held`: the act's loop
   region repeats until `mascot_act_release`, so the laptop comes out once

@@ -335,6 +335,10 @@ void director_on_payload(const UsageData* d, const SignalsUpdate* sig) {
     if (!d->valid || !d->ok) return;
     window_not_started = !d->enterprise && d->session_reset_mins < 0;
     status_in.limited = strcmp(d->status, "limited") == 0;
+    // The app that sends `sm` also marks each turn's first tool call with
+    // `w`, so `a` alone stops meaning working from its first payload, not
+    // from the first `w` after a reboot.
+    if (d->status_mode >= 0) status_in.knows_work = true;
 
     // The slow clock moving counts as you being around.
     if (!sig->replay) {
