@@ -1,6 +1,7 @@
 #include "performer.h"
 #include "clawd_anim.h"
 #include "clawd_policy.h"
+#include "direct_sprite.h"
 #include "field.h"
 #include "perf.h"
 #include "splash_geometry.h"
@@ -27,17 +28,13 @@ static uint8_t*  buf = NULL;                   // planar RGB565A8: colour plane,
 static lv_image_dsc_t dsc;
 static bool      shown = false;                // img not hidden (direct: he's on the panel)
 
-// Direct mode, for boards without PSRAM: no screen-sized buffer. He's drawn
-// straight to the panel one grid row at a time, and the meters are hidden
-// while he's on, so LVGL has nothing under him to redraw. Whatever LVGL does
-// flush there (a rotation's full redraw) is painted over again at once
-// (performer_note_flush).
-static uint16_t* strip = NULL;                 // one grid row: dim x cell px
-static lv_obj_t* host = NULL;                  // the screen whose children he hides
-static int       org_x = 0, org_y = 0;         // panel position of grid cell (0,0)
-#define HIDDEN_BY_PERFORMER LV_OBJ_FLAG_USER_1
+// Direct mode, for boards without PSRAM (direct_performer): no screen-sized
+// buffer. He's drawn straight to the panel, in front of the meters, on the
+// same 60x60 grid (direct_sprite.h).
+static bool         direct = false;
+static DirectSprite ds;
 
-static bool ready(void) { return img || strip; }
+static bool ready(void) { return img || direct; }
 
 // ─── Mood groups ─────────────────────────────────────────────────────────────
 #define GROUP_COUNT 4
@@ -127,84 +124,21 @@ static void set_hidden(void* on) {
     else    lv_obj_clear_flag(img, LV_OBJ_FLAG_HIDDEN);
 }
 
-// Direct mode: hide the meters (only what was showing) or bring them back.
-static void hide_meters(bool hide) {
-    const uint32_t n = lv_obj_get_child_count(host);
-    for (uint32_t i = 0; i < n; i++) {
-        lv_obj_t* k = lv_obj_get_child(host, i);
-        if (hide && !lv_obj_has_flag(k, LV_OBJ_FLAG_HIDDEN)) {
-            lv_obj_add_flag(k, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_add_flag(k, HIDDEN_BY_PERFORMER);
-        } else if (!hide && lv_obj_has_flag(k, HIDDEN_BY_PERFORMER)) {
-            lv_obj_clear_flag(k, HIDDEN_BY_PERFORMER);
-            lv_obj_clear_flag(k, LV_OBJ_FLAG_HIDDEN);
-        }
-    }
-    if (hide) lv_refr_now(NULL);                   // black before his first frame
-}
-
-// Direct mode: push grid cells [gx0, gx1) x [gy0, gy1) to the panel, one
-// grid row per write, skipping rows that hang past the panel.
-static void blit_cells(int gx0, int gy0, int gx1, int gy1) {
-    if (gx1 <= gx0) return;
-    const int H = board_caps().height;
-    const int w = (gx1 - gx0) * cell;
-    for (int gy = gy0; gy < gy1; gy++) {
-        const int y = org_y + gy * cell;
-        if (y < 0 || y + cell > H) continue;
-        for (int gx = gx0; gx < gx1; gx++) {
-            const uint8_t code = drawn_cells[gy * GRID + gx];
-            const uint16_t c = (code && drawn_palette && code < CLAWD_PALETTE_SIZE) ? drawn_palette[code] : 0;
-            uint16_t* p = strip + (gx - gx0) * cell;
-            for (int i = 0; i < cell; i++) p[i] = c;
-        }
-        for (int d = 1; d < cell; d++) memcpy(strip + d * w, strip, w * 2);
-        display_hal_draw_bitmap(org_x + gx0 * cell, y, w, cell, strip);
-    }
-}
-
+// Direct mode: the grid is the frame; only what changed reaches the panel.
 static void render_direct(const uint8_t* cells, const uint16_t* palette) {
-    bool any = false;
-    for (int i = 0; i < GRID * GRID; i++) if (cells[i]) { any = true; break; }
-    const bool repaint_all = palette != drawn_palette;
-    int gx0 = GRID, gy0 = GRID, gx1 = -1, gy1 = -1;
-    for (int gy = 0; gy < GRID; gy++) {
-        for (int gx = 0; gx < GRID; gx++) {
-            const uint8_t code = cells[gy * GRID + gx];
-            if (code == drawn_cells[gy * GRID + gx] && !(repaint_all && code)) continue;
-            if (gx < gx0) gx0 = gx;
-            if (gx > gx1) gx1 = gx;
-            if (gy < gy0) gy0 = gy;
-            if (gy > gy1) gy1 = gy;
-        }
-    }
-    memcpy(drawn_cells, cells, sizeof(drawn_cells));
-    drawn_palette = palette;
-    cells_any = any;
-
-    if (any && !shown) {                          // he's coming on
-        hide_meters(true);
-        shown = true;
-        perf_begin(PERF_PERFORM);
-    }
-    if (shown) blit_cells(gx0, gy0, gx1 + 1, gy1 + 1);
-    if (!any && shown) {                          // gone: his last cells are black again
-        hide_meters(false);
-        shown = false;
-        perf_end(PERF_PERFORM);
-    }
+    memcpy(ds.next, cells, (size_t)GRID * GRID);
+    direct_sprite_commit(&ds, palette);
+    cells_any = ds.any;
+    if (cells_any && !shown) { shown = true; perf_begin(PERF_PERFORM); }
+    if (!cells_any && shown) { shown = false; perf_end(PERF_PERFORM); }
 }
 
 void performer_note_flush(int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
-    if (!strip || !shown) return;
-    int gx0, gx1, gy0, gy1;
-    span_touch_cells(org_x, cell, GRID, x1, x2 + 1, &gx0, &gx1);
-    span_touch_cells(org_y, cell, GRID, y1, y2 + 1, &gy0, &gy1);
-    blit_cells(gx0, gy0, gx1, gy1);
+    if (direct) direct_sprite_note_flush(&ds, x1, y1, x2, y2);
 }
 
 static void render_cells(const uint8_t* cells, const uint16_t* palette) {
-    if (strip) { render_direct(cells, palette); return; }
+    if (direct) { render_direct(cells, palette); return; }
     if (!buf || !img) return;
     bool any = false;
     for (int i = 0; i < GRID * GRID; i++) if (cells[i]) { any = true; break; }
@@ -377,18 +311,15 @@ void performer_init(lv_obj_t* parent, int feet_y) {
     int x0, x1;
     panel_row_span(c.width, c.height, c.round_panel, feet_y, &x0, &x1);
     // Without PSRAM there's no room for a screen-sized sprite: boards that
-    // allow it draw direct (one grid row, about 8 KB on a 480 panel); the
-    // rest, or if even that row fails, get performances as corner acts.
+    // allow it draw direct (direct_sprite.h); the rest, or if even that
+    // can't be allocated, get performances as corner acts.
     buf = (uint8_t*)heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM);
     if (!buf) {
-        if (c.direct_performer)
-            strip = (uint16_t*)heap_caps_malloc((size_t)dim * cell * 2, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-        if (!strip) { Serial.println("performer: no PSRAM, corner acts only"); return; }
-        Serial.println("performer: no PSRAM, drawing direct");
-        host = parent;
-        memset(drawn_cells, 0, sizeof(drawn_cells));
-        org_x = ((c.width - dim) / 2) & ~1;      // even, as the panels' flush areas are
-        org_y = (feet_y - (ANCHOR_Y + CLAWD_ART_H) * cell) & ~1;
+        const int org_x = ((c.width - dim) / 2) & ~1;   // even, as the panels' flush areas are
+        const int org_y = (feet_y - (ANCHOR_Y + CLAWD_ART_H) * cell) & ~1;
+        direct = c.direct_performer && direct_sprite_init(&ds, cell, org_x, org_y, GRID, GRID);
+        Serial.printf("performer: no PSRAM, %s\n", direct ? "drawing direct" : "corner acts only");
+        if (!direct) return;
         span_to_cells(org_x, cell, GRID, x0, x1, &stage_c0, &stage_c1);
         pst = P_OFF;
         dx = offstage_dx(-1);

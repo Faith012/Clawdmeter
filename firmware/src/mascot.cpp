@@ -1,6 +1,7 @@
 #include "mascot.h"
 #include "clawd_anim.h"
 #include "clawd_policy.h"
+#include "direct_sprite.h"
 #include "splash_geometry.h"
 #include "usage_rate.h"
 #include "hal/board_caps.h"
@@ -12,9 +13,14 @@
 static lv_obj_t*      img = NULL;        // corner Clawd
 static uint8_t*       buf = NULL;        // planar RGB565A8, sized for the largest corner act
 static lv_image_dsc_t dsc;
-static lv_obj_t*      big_img = NULL;    // lurk + attention Clawd (PSRAM only)
+static lv_obj_t*      big_img = NULL;    // lurk + attention Clawd (PSRAM)
 static uint8_t*       big_buf = NULL;
 static lv_image_dsc_t big_dsc;
+// Without PSRAM, on boards with direct_performer: the same two drawn straight
+// to the panel (direct_sprite.h), each on its own cell grid.
+static bool           big_direct = false;
+static DirectSprite   big_ds, lurk_ds;
+static bool big_ok(void) { return big_img || big_direct; }
 
 static int cell = 3, slot_x = 0, feet_y = 0, screen_w = 480, screen_h = 480;
 static bool round_panel = false;
@@ -129,15 +135,41 @@ static int  right_edge(int y) { int a, b; panel_row_span(screen_w, screen_h, rou
 static void draw_corner(void) {
     render(anim, frame, facing < 0, &dsc, buf, img, cell, x, feet_y);
 }
+// A frame on a direct sprite's grid, left edge at px, feet on its bottom row.
+static void draw_direct(DirectSprite* s, int px, bool mirror) {
+    const int d = px - s->org_x;
+    const int col = d >= 0 ? d / s->cell : -((-d + s->cell - 1) / s->cell);
+    direct_sprite_clear(s);
+    direct_sprite_put(s, clawd_frame(anim, frame), anim->w, anim->h, mirror, col, s->rows - anim->h);
+    direct_sprite_commit(s, anim->palette);
+}
+
 static void draw_big(void) {
-    render(anim, frame, mode == M_BIG_OUT, &big_dsc, big_buf, big_img,
-           big_cell, big_x0 + anim->ox * big_cell + big_dx, big_feet_y);
+    const int px = big_x0 + anim->ox * big_cell + big_dx;
+    if (big_direct) { draw_direct(&big_ds, px, mode == M_BIG_OUT); return; }
+    render(anim, frame, mode == M_BIG_OUT, &big_dsc, big_buf, big_img, big_cell, px, big_feet_y);
 }
 static void draw_lurk(void) {
     // He left stage left, so he peeks in from the RIGHT edge — mirrored (the
     // art is authored hanging off the left edge).
-    render(anim, frame, true, &big_dsc, big_buf, big_img, lurk_cell,
-           right_edge(lurk_feet_y) - anim->w * lurk_cell, lurk_feet_y);
+    const int px = right_edge(lurk_feet_y) - anim->w * lurk_cell;
+    if (big_direct) { draw_direct(&lurk_ds, px, true); return; }
+    render(anim, frame, true, &big_dsc, big_buf, big_img, lurk_cell, px, lurk_feet_y);
+}
+
+// The lurk or attention Clawd leaves the screen.
+static void hide_big(void) {
+    show(big_img, false);
+    if (big_direct) {
+        direct_sprite_erase(&big_ds);
+        direct_sprite_erase(&lurk_ds);
+    }
+}
+
+void mascot_note_flush(int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
+    if (!big_direct) return;
+    direct_sprite_note_flush(&big_ds, x1, y1, x2, y2);
+    direct_sprite_note_flush(&lurk_ds, x1, y1, x2, y2);
 }
 
 static int  off_left_x(void) {
@@ -184,7 +216,7 @@ static void walk_to(int target, uint16_t spd, After then) {
 }
 
 static void big_enter(void) {
-    if (!big_img || !walk_anim) { mode = M_AWAY; return; }
+    if (!big_ok() || !walk_anim) { mode = M_AWAY; return; }
     show(img, false);
     mode = M_BIG_IN;
     start_frames(walk_anim);
@@ -192,7 +224,7 @@ static void big_enter(void) {
     speed = 200;
     big_dx = left_edge(big_feet_y) - (big_x0 + (walk_anim->ox + walk_anim->w) * big_cell);
     show(big_img, true);
-    lv_obj_move_foreground(big_img);
+    if (big_img) lv_obj_move_foreground(big_img);
     draw_big();
 }
 
@@ -208,12 +240,12 @@ static void seat_attention(void) {
 
 static void lurk_start(void) {
     const ClawdAnim* l = clawd_anim("lurking");
-    if (!l || !big_img) { walk_to(slot_x, 100, AFTER_SEAT); return; }
+    if (!l || !big_ok()) { walk_to(slot_x, 100, AFTER_SEAT); return; }
     mode = M_LURK;
     start_frames(l);
     speed = 100;
     show(big_img, true);
-    lv_obj_move_foreground(big_img);
+    if (big_img) lv_obj_move_foreground(big_img);
     draw_lurk();
 }
 
@@ -260,6 +292,23 @@ lv_obj_t* mascot_create(lv_obj_t* parent, int sx, int feet, int c) {
     if (!buf) buf = (uint8_t*)heap_caps_malloc(bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     if (!buf) return NULL;
     big_buf = big_bytes ? (uint8_t*)heap_caps_malloc(big_bytes, MALLOC_CAP_SPIRAM) : NULL;
+    if (!big_buf && caps.direct_performer) {
+        // Each on a grid spanning the panel's width, its bottom row on his
+        // feet line, as tall as his tallest frame there.
+        int big_rows = 0;
+        for (const char* n : BIG) {
+            const ClawdAnim* a = clawd_anim(n);
+            if (a && a != lurk && a->h > big_rows) big_rows = a->h;
+        }
+        const int lurk_rows = lurk ? lurk->h : 0;
+        big_direct =
+            big_rows && lurk_rows &&
+            direct_sprite_init(&big_ds, big_cell, 0, big_feet_y - big_rows * big_cell,
+                               (caps.width + big_cell - 1) / big_cell, big_rows) &&
+            direct_sprite_init(&lurk_ds, lurk_cell, 0, lurk_feet_y - lurk_rows * lurk_cell,
+                               (caps.width + lurk_cell - 1) / lurk_cell, lurk_rows);
+        Serial.printf("mascot: no PSRAM, full-size Clawd %s\n", big_direct ? "drawn direct" : "off");
+    }
 
     img = lv_image_create(parent);
     lv_obj_clear_flag(img, LV_OBJ_FLAG_CLICKABLE);
@@ -357,7 +406,7 @@ void mascot_return(int from_side, uint16_t spd) {
 }
 
 bool mascot_lurk(void) {
-    if (!img || minimal || !big_img || mode != M_SEATED) return false;
+    if (!img || minimal || !big_ok() || mode != M_SEATED) return false;
     last_act = "lurking";
     walk_to(off_left_x(), 100, AFTER_LURK);
     return true;
@@ -395,7 +444,7 @@ void mascot_place_away(void) {
     stay_away = false;
     hurry = false;
     show(img, false);
-    show(big_img, false);
+    hide_big();
     mode = M_AWAY;
     x = off_left_x();
 }
@@ -405,7 +454,7 @@ void mascot_reset(void) {
     attn = false;
     stay_away = false;
     hurry = false;
-    show(big_img, false);
+    hide_big();
     seat();
 }
 
@@ -432,7 +481,7 @@ void mascot_attention(bool on, bool to_seat) {
         }
         return;
     }
-    if (!big_img) {                                // no PSRAM: he waves and points from his seat
+    if (!big_ok()) {                                // no PSRAM: he waves and points from his seat
         if (on) {
             // He may be out (attention cut a show short): he walks back to
             // his seat first, and mascot_tick starts the wave there.
@@ -445,7 +494,7 @@ void mascot_attention(bool on, bool to_seat) {
     }
     if (on) {
         if (mode == M_AWAY)              big_enter();
-        else if (mode == M_LURK)       { show(big_img, false); big_enter(); }
+        else if (mode == M_LURK)       { hide_big(); big_enter(); }
         else if (mode == M_BIG_OUT)      mode = M_BIG_IN;          // was leaving: turn around
         else                             walk_to(off_left_x(), 200, AFTER_BIG);
     } else {
@@ -472,7 +521,7 @@ static void seated_tick(uint32_t now) {
     const char* act = ACTS_BY_RATE[g][pick];
     last_act = act;
     if (strcmp(act, "lurking") == 0) {
-        if (!big_img) { seated_since = now; return; }  // no full-size sprite: skip the trip
+        if (!big_ok()) { seated_since = now; return; }  // no full-size sprite: skip the trip
         walk_to(off_left_x(), 100, AFTER_LURK);
         return;
     }
@@ -490,7 +539,7 @@ void mascot_tick(void) {
     if (!img || !anim) return;
     const uint32_t now = millis();
     if (mode == M_SEATED) {
-        if (attn && !big_img && !minimal) { seat_attention(); return; }   // back in his seat for the alert
+        if (attn && !big_ok() && !minimal) { seat_attention(); return; }   // back in his seat for the alert
         seated_tick(now);
         return;
     }
@@ -515,7 +564,7 @@ void mascot_tick(void) {
             return;
         }
         if (mode == M_LURK) {                          // back in from the right
-            show(big_img, false);
+            hide_big();
             if (stay_away) { stay_away = false; hurry = false; mode = M_AWAY; return; }
             x = off_right_x();
             walk_to(slot_x, hurry ? HURRY_PCT : 100, AFTER_SEAT);
@@ -549,7 +598,7 @@ void mascot_tick(void) {
                 return;
             }
             if (mode == M_BIG_OUT && big_x0 + (a->ox + a->w) * big_cell + big_dx <= left_edge(big_feet_y)) {
-                show(big_img, false);                  // gone: the small one walks home
+                hide_big();                  // gone: the small one walks home
                 x = off_left_x();
                 if (!attn_to_seat) { mode = M_AWAY; return; }   // ...or stays out (screensaver resumes)
                 walk_to(slot_x, 100, AFTER_SEAT);

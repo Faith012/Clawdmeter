@@ -35,10 +35,11 @@ struct BoardCaps {
                              // button when button_count is 0) dismisses an
                              // active alert before it does anything else
                              // (director_button).
-    bool    direct_performer; // without PSRAM, draw the full-size performer
-                             // straight to the panel (performer.cpp) instead
-                             // of falling back to corner acts. Set it only
-                             // once the board has been checked on hardware.
+    bool    direct_performer; // without PSRAM, draw the full-size Clawds
+                             // (performer, lurk, attention) straight to the
+                             // panel (direct_sprite.h) instead of falling
+                             // back to corner acts. Set it only once the
+                             // board has been checked on hardware.
 };
 
 const BoardCaps& board_caps(void);

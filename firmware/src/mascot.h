@@ -12,12 +12,17 @@
 // in-room secondary action while seated and `autonomy` is on: jittered idle
 // gaps, mood-picked acts (never the same twice running) and the lurk trip.
 //
-// The corner sprite works on every board (its ~23 KB buffer falls back to
-// internal RAM); the full-size sprite needs PSRAM (~250 KB). Without it the
-// lurk trip is skipped and attention is a wave and point from his seat.
+// The corner sprite works on every board (its buffer falls back to internal
+// RAM). The full-size sprite is an LVGL image with PSRAM (~250 KB); without
+// it, boards with direct_performer draw it straight to the panel
+// (direct_sprite.h), and the rest skip the lurk trip and wave and point
+// from the seat for attention.
 
 lv_obj_t* mascot_create(lv_obj_t *parent, int slot_x, int feet_y, int cell);
 void mascot_tick(void);
+// The flush callback calls this after each area LVGL draws, so a directly
+// drawn full-size Clawd paints himself back over it. A no-op otherwise.
+void mascot_note_flush(int32_t x1, int32_t y1, int32_t x2, int32_t y2);
 
 bool mascot_seated(void);            // in his seat, between acts
 bool mascot_away(void);              // fully off screen

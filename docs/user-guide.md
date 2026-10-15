@@ -144,13 +144,14 @@ prompt) or **MCP request!**. The test alert says **Clawdmeter test alert**.
 A tap or the device's two-minute timeout dismisses the alert on the device
 and tells the app to clear it from the tray too. Answering also clears the
 alert through hooks. Uncleared app alerts expire after 2 minutes too; test
-alerts expire after 30 seconds. C6 boards show the message without the
-full-size Clawd. Optional alert and reset chimes work on boards with an implemented audio output; those boards also ding once when they start.
+alerts expire after 30 seconds. The AMOLED-1.8 (C6) shows the message
+without the full-size Clawd. Optional alert and reset chimes work on boards with an implemented audio output; those boards also ding once when they start.
 Boards with the **minimal display** capability keep the meters and a still
 Clawd, with no animated scenes. This is a board capability, not a user setting.
-C6 boards have no room for the full-size Clawd's alert walk-on. The
-AMOLED-2.16 (C6) plays shows and calm dips full size; the AMOLED-1.8 (C6)
-plays them as acts in his corner seat.
+C6 boards have no PSRAM for the full-size Clawd. The AMOLED-2.16 (C6)
+draws him straight to the panel instead, so its shows, calm dips, lurk
+trips and alert walk-on look as they do on S3; the AMOLED-1.8 (C6) plays
+shows as acts in his corner seat and waves from it for an alert.
 
 The status line rotates through Claude Code's whimsical thinking verbs when
 all is well. It shows **Waiting** without a connection, **No data** before a

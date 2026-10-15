@@ -55,6 +55,7 @@ static void my_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px_m
     int32_t h = area->y2 - area->y1 + 1;
     display_hal_draw_bitmap(area->x1, area->y1, w, h, (uint16_t*)px_map);
     performer_note_flush(area->x1, area->y1, area->x2, area->y2);
+    mascot_note_flush(area->x1, area->y1, area->x2, area->y2);
     lv_display_flush_ready(disp);
 }
 

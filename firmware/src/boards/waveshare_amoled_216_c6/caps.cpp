@@ -14,7 +14,7 @@ static const BoardCaps caps = {
     .minimal_ui   = false,   // full animated UI; true for e-ink / slow panels
     .has_pwr_button = true,  // AXP2101 PKEY
     .has_touch = true,
-    .direct_performer = true,  // verified on hardware: shows, calm dips, rotation
+    .direct_performer = true,  // verified on hardware: shows, calm dips, lurk, attention, rotation
 };
 
 const BoardCaps& board_caps(void) { return caps; }

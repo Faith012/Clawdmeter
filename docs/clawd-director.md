@@ -344,19 +344,23 @@ a board capability, with no NVS override, desktop setting, or serial toggle.
 - Corner Clawd: animated. Its buffer, sized for the largest corner act
   (jumping happy, 28×30 cells × 3 px, about 23 KB), falls back to internal RAM.
 - Face: plain LVGL objects, the same as on S3.
-- Performer: no room for its buffer (about 690 KB). With the
-  `direct_performer` capability (the AMOLED-2.16 C6) he's drawn straight to
-  the panel instead: each frame repaints only the grid cells that changed,
-  one grid row per write from an 8 KB strip, and the meters are hidden while
-  he's on, so LVGL has nothing under him to redraw. Anything LVGL still
-  flushes there (a rotation's full redraw) he paints back over at once
-  (`performer_note_flush`, from the flush callback). Shows and calm dips then
-  look as they do on S3. Without the capability a show is corner acts
-  (pointing, dancing or jumping happy twice, a wave) and a calm dip is the
-  corner Clawd walking back to his seat for a while (see Beats).
-- No full-size sprite (about 250 KB), so there's no lurk trip, and attention
-  is a wave and point in his seat (he walks back to it first if he's out),
-  for the attention animation's time.
+- Performer and full-size sprite: no room for their buffers (about 690 KB
+  and 250 KB). With the `direct_performer` capability (the AMOLED-2.16 C6)
+  all three full-size Clawds (the performer, the lurk trip, the attention
+  walk-on) are drawn straight to the panel instead (`direct_sprite.{h,cpp}`),
+  still in front of the meters: only his coloured cells are drawn, each on
+  the sprite's own cell grid; the cells he leaves are handed back to LVGL,
+  which redraws the meters there; and after every area LVGL flushes he
+  paints his cells back over it (`performer_note_flush` and
+  `mascot_note_flush`, from the flush callback), so the meters' own redraws
+  and a rotation's full redraw never cut into him. Shows, calm dips, lurk
+  trips and attention then look as they do on S3. The three share one blit
+  buffer (one grid row, about 8 KB), since only one Clawd is ever on screen.
+- Without the capability a show is corner acts (pointing, dancing or
+  jumping happy twice, a wave), a calm dip is the corner Clawd walking back
+  to his seat for a while, there's no lurk trip, and attention is a wave and
+  point in his seat (he walks back to it first if he's out), for the
+  attention animation's time.
 
 ## Buttons
 
