@@ -88,26 +88,31 @@ static void test_screensaver_calm_dip_keeps_one_clawd(void) {
     assert_one_clawd();
 }
 
-// Status mode: a prompt has him thinking (magnifier), tool calls working
-// (laptop, no idle acts), a Stop done (jumping happy) even while `a` still
-// counts the last minute; turned off, he's idle with his idle acts back.
+// Status mode, with an app that sends `sm` and `w`: a prompt has him
+// thinking (magnifier) even while `a` still counts the last turn's tool
+// calls; the turn's first tool call (`w`) working (laptop, no idle acts); a
+// Stop done (jumping happy) while `a` is still up; turned off, he's idle
+// with his idle acts back.
 static void test_status_mode_shows_what_claude_is_doing(void) {
     fresh_director();
     director_set_status_mode(true);
     run_for(1000);
     UsageData d = live_payload();
+    d.status_mode = 1;                            // the app sends `sm`, so it sends `w` too
     SignalsUpdate sig = no_signal();
+    world.activity = 2;                           // the last turn's tool calls, still counted
     sig.event_fired = true; sig.event = 'p'; sig.event_seq = 1;
     send(d, sig);
     run_for(4000);                                // thinking at once, no noticing point
     TEST_ASSERT_EQUAL(STATUS_THINKING, status);
     TEST_ASSERT_EQUAL_STRING("magnifier", fake_last_act);
-    world.activity = 2;
+    sig.event = 'w'; sig.event_seq = 2;           // this turn's first tool call
+    send(d, sig);
     run_for(4000);
     TEST_ASSERT_EQUAL(STATUS_WORKING, status);
     TEST_ASSERT_EQUAL_STRING("laptop", fake_last_act);
     TEST_ASSERT_FALSE(fake_mascot_autonomy());
-    sig.event = 's'; sig.event_seq = 2;
+    sig.event = 's'; sig.event_seq = 3;
     send(d, sig);
     run_for(4000);
     TEST_ASSERT_EQUAL(STATUS_DONE, status);       // `a` is still up: the Stop wins
