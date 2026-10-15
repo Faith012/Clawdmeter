@@ -284,3 +284,31 @@ int face_glance_px(FaceAct act, int glance_px, int tap_g, ClawdRng* r, const Cla
     if (tap_g != 0 && clawd_rng_chance(r, t->peek_toward_pct)) return tap_g;
     return act == FACE_GLANCE_LEFT ? -glance_px : glance_px;
 }
+
+// ─── Status mode ─────────────────────────────────────────────────────────────
+static bool before(uint32_t a, uint32_t b) { return (int32_t)(a - b) < 0; }
+
+ClawdStatus clawd_status(const StatusInput* in) {
+    if (in->limited) return STATUS_LIMIT;
+    if (in->alert)   return STATUS_WAITING;
+    // The latest turn event decides: a Stop at or after the last prompt ends
+    // the turn, even while `a` still counts that minute's tool calls.
+    const bool stopped = in->have_stop && (!in->have_prompt || !before(in->stop_at, in->prompt_at));
+    if (stopped) return in->now - in->stop_at < STATUS_DONE_MS ? STATUS_DONE : STATUS_IDLE;
+    if (in->activity > 0) return STATUS_WORKING;
+    if (!in->have_prompt) return STATUS_IDLE;
+    uint32_t last = in->prompt_at;
+    if (in->have_active && before(last, in->active_at)) last = in->active_at;
+    return in->now - last < STATUS_TURN_STALE_MS ? STATUS_THINKING : STATUS_IDLE;
+}
+
+const char* clawd_status_name(ClawdStatus s) {
+    switch (s) {
+    case STATUS_DONE:     return "done";
+    case STATUS_THINKING: return "thinking";
+    case STATUS_WORKING:  return "working";
+    case STATUS_WAITING:  return "waiting";
+    case STATUS_LIMIT:    return "limit";
+    default:              return "idle";
+    }
+}

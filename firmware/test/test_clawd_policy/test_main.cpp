@@ -378,6 +378,75 @@ static void test_attention_animation_is_a_share_of_the_alert(void) {
     clawd_set_attn_anim(CLAWD_ATTN_ANIM_DEFAULT_S);
 }
 
+static StatusInput status_at(uint32_t now) {
+    StatusInput in;
+    memset(&in, 0, sizeof(in));
+    in.now = now;
+    return in;
+}
+
+static void test_status_idle_by_default(void) {
+    StatusInput in = status_at(10 * MIN);
+    TEST_ASSERT_EQUAL(STATUS_IDLE, clawd_status(&in));
+}
+
+static void test_status_limit_and_alert_outrank_work(void) {
+    StatusInput in = status_at(10 * MIN);
+    in.activity = 3;
+    in.alert = true;
+    TEST_ASSERT_EQUAL(STATUS_WAITING, clawd_status(&in));
+    in.limited = true;
+    TEST_ASSERT_EQUAL(STATUS_LIMIT, clawd_status(&in));
+}
+
+static void test_status_prompt_thinks_tools_work(void) {
+    StatusInput in = status_at(10 * MIN);
+    in.have_prompt = true; in.prompt_at = 9 * MIN;
+    TEST_ASSERT_EQUAL(STATUS_THINKING, clawd_status(&in));
+    in.activity = 1;
+    TEST_ASSERT_EQUAL(STATUS_WORKING, clawd_status(&in));
+    in.have_prompt = false;                       // rebooted mid-turn: tools still mean working
+    TEST_ASSERT_EQUAL(STATUS_WORKING, clawd_status(&in));
+}
+
+static void test_status_stop_is_done_then_idle(void) {
+    StatusInput in = status_at(10 * MIN);
+    in.have_prompt = true; in.prompt_at = 5 * MIN;
+    in.have_stop = true;   in.stop_at = 9 * MIN;
+    TEST_ASSERT_EQUAL(STATUS_DONE, clawd_status(&in));
+    in.now = 9 * MIN + STATUS_DONE_MS;
+    TEST_ASSERT_EQUAL(STATUS_IDLE, clawd_status(&in));
+    in.prompt_at = in.now;                        // a new prompt opens a new turn
+    TEST_ASSERT_EQUAL(STATUS_THINKING, clawd_status(&in));
+}
+
+static void stop_outranks_lingering_activity(void) {
+    StatusInput in = status_at(10 * MIN);
+    in.have_prompt = true; in.prompt_at = 5 * MIN;
+    in.have_stop = true;   in.stop_at = 10 * MIN - 5 * SEC;
+    in.activity = 2;                              // `a` counts the last minute's tool calls
+    TEST_ASSERT_EQUAL(STATUS_DONE, clawd_status(&in));
+}
+
+static void aborted_turn_goes_idle(void) {
+    StatusInput in = status_at(0);
+    in.have_prompt = true; in.prompt_at = 0;      // Esc: no Stop ever comes
+    in.now = STATUS_TURN_STALE_MS - 1;
+    TEST_ASSERT_EQUAL(STATUS_THINKING, clawd_status(&in));
+    in.now = STATUS_TURN_STALE_MS;
+    TEST_ASSERT_EQUAL(STATUS_IDLE, clawd_status(&in));
+    in.have_active = true; in.active_at = 8 * MIN;   // tools ran later in the turn
+    TEST_ASSERT_EQUAL(STATUS_THINKING, clawd_status(&in));
+}
+
+static void wraps_around(void) {
+    StatusInput in = status_at(0x00001000u);
+    in.have_prompt = true; in.prompt_at = 0xFFFFF000u;
+    TEST_ASSERT_EQUAL(STATUS_THINKING, clawd_status(&in));
+    in.have_stop = true; in.stop_at = 0x00000800u;   // after the prompt, across the wrap
+    TEST_ASSERT_EQUAL(STATUS_DONE, clawd_status(&in));
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_show_needs_five_sustained_minutes_of_level_3);
@@ -411,5 +480,12 @@ int main(int, char**) {
     RUN_TEST(test_levels_in_between_interpolate);
     RUN_TEST(test_liveliness_clamps_and_rebuilds_from_the_base);
     RUN_TEST(test_attention_animation_is_a_share_of_the_alert);
+    RUN_TEST(test_status_idle_by_default);
+    RUN_TEST(test_status_limit_and_alert_outrank_work);
+    RUN_TEST(test_status_prompt_thinks_tools_work);
+    RUN_TEST(test_status_stop_is_done_then_idle);
+    RUN_TEST(stop_outranks_lingering_activity);
+    RUN_TEST(aborted_turn_goes_idle);
+    RUN_TEST(wraps_around);
     return UNITY_END();
 }

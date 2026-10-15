@@ -246,3 +246,33 @@ static inline void face_eye_offsets(int g, int* left_dx, int* right_dx) {
     *left_dx  = g < 0 ? (g * 3) / 2 : g;
     *right_dx = g > 0 ? (g * 3) / 2 : g;
 }
+
+// ─── Status mode ─────────────────────────────────────────────────────────────
+// What Claude Code is doing, from what the device already gets: hook events
+// (`e` prompt / stop, `a` tool activity), the alert, and `st`. Highest
+// priority first. The director loops the state's corner act and puts it on
+// the status line (clawd_director.h, director_set_status_mode).
+enum ClawdStatus {
+    STATUS_IDLE,       // nothing going on: Clawd as usual
+    STATUS_DONE,       // a Stop in the last STATUS_DONE_MS
+    STATUS_THINKING,   // a turn is open, no tool calls right now
+    STATUS_WORKING,    // tool calls in the last minute (`a` > 0), turn not stopped
+    STATUS_WAITING,    // an alert is up
+    STATUS_LIMIT,      // `st` is "limited"
+};
+#define STATUS_DONE_MS       (5UL * 60UL * 1000UL)
+// An open turn with no prompt or tool activity for this long is over: a
+// turn ended with Esc never sends a Stop.
+#define STATUS_TURN_STALE_MS (10UL * 60UL * 1000UL)
+
+struct StatusInput {
+    uint32_t now;
+    bool     limited;
+    bool     alert;
+    int      activity;                        // `a`; <= 0 = no tool calls in the last minute
+    bool     have_prompt; uint32_t prompt_at; // the last 'p' / 'b'
+    bool     have_stop;   uint32_t stop_at;   // the last 's'
+    bool     have_active; uint32_t active_at; // the last moment `a` was > 0
+};
+ClawdStatus clawd_status(const StatusInput* in);
+const char* clawd_status_name(ClawdStatus s);   // for the serial log
