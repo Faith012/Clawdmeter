@@ -482,10 +482,6 @@ mod tests {
         assert_eq!(a.level(t + 70), 0);
         assert_eq!(a.ingest(&ev(t + 80, "Stop", "s1")), Signal::Stop);
         assert_eq!((a.latest, a.seq), (Some(EventCode::Stop), 3));
-        // A tool call with no new prompt since (another session, an
-        // approval) doesn't mark work.
-        a.ingest(&ev(t + 85, "PostToolUse", "s2"));
-        assert_eq!(a.seq, 3);
         assert!(!a.working(t + 90));
         assert_eq!(a.sessions_active(t + 80 + 299), 1);
         assert_eq!(a.sessions_active(t + 80 + 300), 0);
@@ -494,6 +490,23 @@ mod tests {
         assert_eq!(a.latest, Some(EventCode::Back));
         a.prune(t + 2000);
         assert_eq!(a.sessions_active(t + 2000), 0);
+    }
+
+    #[test]
+    fn work_marks_a_turns_first_tool_call() {
+        let mut a = Activity::default();
+        a.ingest(&ev(10, "PostToolUse", "s")); // no prompt yet: nothing to mark
+        assert_eq!(a.seq, 0);
+        a.ingest(&ev(20, "UserPromptSubmit", "s"));
+        a.ingest(&ev(25, "PostToolUse", "s"));
+        assert_eq!((a.latest, a.seq), (Some(EventCode::Work), 2));
+        a.ingest(&ev(26, "PostToolUse", "s"));
+        assert_eq!(a.seq, 2, "once per prompt");
+        a.ingest(&ev(30, "Stop", "s"));
+        // A tool call with no new prompt since (another session, an
+        // approval) doesn't mark work.
+        a.ingest(&ev(35, "PostToolUse", "s"));
+        assert_eq!((a.latest, a.seq), (Some(EventCode::Stop), 3));
     }
 
     #[test]
