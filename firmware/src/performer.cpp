@@ -458,17 +458,27 @@ void performer_perform(int idx, uint32_t loop_ms) {
 static ClawdRng rng;
 static bool rng_seeded = false;
 
-void performer_perform_group(int group, uint32_t loop_ms, bool calm) {
-    if (!ready()) return;
+// Perform one of names, never the last one of its kind (show or calm) again.
+static void perform_pick(const char* const* names, int n, uint32_t loop_ms, bool calm) {
     if (!rng_seeded) { clawd_rng_seed(&rng, millis() ^ 0x57A6E); rng_seeded = true; }
-    if (group < 0 || group >= GROUP_COUNT) group = 0;
-    const char* const* names = calm ? CALM_NAMES : GROUP_NAMES[group];
-    const int n = calm ? (int)(sizeof(CALM_NAMES) / sizeof(CALM_NAMES[0])) : GROUP_MAX;
     const char*& last = calm ? last_calm : last_show;
     const int pick = clawd_pick_no_repeat(names, n, last, &rng);
     const ClawdAnim* a = pick >= 0 ? clawd_anim(names[pick]) : NULL;
     if (a) last = a->name;
     scene_start(a, loop_ms);
+}
+
+void performer_perform_group(int group, uint32_t loop_ms, bool calm) {
+    if (!ready()) return;
+    if (group < 0 || group >= GROUP_COUNT) group = 0;
+    const char* const* names = calm ? CALM_NAMES : GROUP_NAMES[group];
+    const int n = calm ? (int)(sizeof(CALM_NAMES) / sizeof(CALM_NAMES[0])) : GROUP_MAX;
+    perform_pick(names, n, loop_ms, calm);
+}
+
+void performer_perform_any(uint32_t loop_ms) {
+    if (!ready()) return;
+    perform_pick(&GROUP_NAMES[0][0], GROUP_COUNT * GROUP_MAX, loop_ms, false);
 }
 
 void performer_release(void) {

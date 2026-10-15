@@ -38,6 +38,7 @@ static Beat     beat = B_HOME;
 static uint8_t  step = 0;
 static uint32_t wait_until = 0;
 static bool     performing = false;   // he's out as the performer on the meters
+static bool     on_demand = false;    // B_SHOW asked for with PWR: any scene, no cooldown
 static bool     notice_wake = false;  // B_FACE_HOME: blink first (he noticed you)
 
 // Attention
@@ -81,6 +82,7 @@ static void go(Beat b) {
                                  BEAT_NAMES[beat], BEAT_NAMES[b]);
     beat = b;
     step = 0;
+    on_demand = false;
     wait_until = now_ms();
     mascot_autonomy(b == B_HOME && !minimal && clawd_tuning().idle_acts);
 }
@@ -280,6 +282,23 @@ bool director_button(bool main_button) {
     return false;
 }
 
+bool director_play_scene(void) {
+    if (minimal || (beat != B_HOME && beat != B_CORNER)) return false;
+    engage();
+    go(B_SHOW);
+    on_demand = true;
+    return true;
+}
+
+bool director_next_scene(void) {
+    if (beat != B_SHOW) return false;
+    engage();
+    // Step 4 is a scene playing (step 3 started it); anywhere else in the
+    // show the press is just swallowed.
+    if (performing && step == 4) performer_perform_any(clawd_tuning().show_scene_ms);
+    return true;
+}
+
 void director_set_attn_anim(int seconds) {
     clawd_set_attn_anim(seconds);             // a running alert follows it on the next tick
 }
@@ -392,7 +411,7 @@ static void run_show(uint32_t now) {
         // finish; if he's already up and about (a lurk trip), he heads
         // straight out instead.
         if (mascot_acting()) return;
-        show_gate_mark_shown(&show_gate, now);
+        if (!on_demand) show_gate_mark_shown(&show_gate, now);   // asked-for scenes don't use up a show
         if (mascot_seated())              { mascot_act("pointing", 1); next_step(); }
         else if (performer_available())   { mascot_leave(150); step = 2; wait_until = now; }
         else                              { go(B_HOME); }   // corner-only: he's out, skip it
@@ -422,7 +441,8 @@ static void run_show(uint32_t now) {
         next_step();
         break;
     case 3:
-        performer_perform_group(g, t.show_scene_ms, false);
+        if (on_demand) performer_perform_any(t.show_scene_ms);
+        else           performer_perform_group(g, t.show_scene_ms, false);
         next_step();
         break;
     case 4:  // show over: a wave

@@ -8,6 +8,7 @@
 #include "ui.h"
 #include "ble.h"
 #include "performer.h"
+#include "double_press.h"
 #include "mascot.h"
 #include "clawd_director.h"
 #include "usage_rate.h"
@@ -423,13 +424,19 @@ void loop() {
             }
         }
 
-        if (power_hal_pwr_pressed()) {
-            if (!idle_consume_wake_press()) {
-                // Counts as you being here. On a touchless board whose only
-                // button this is, it dismisses an active alert first; else it
-                // cycles brightness.
-                if (!director_button(board_caps().button_count == 0)) brightness_cycle();
-            }
+        // A press that wakes the panel only wakes it. The rest go through the
+        // double-press detector: a double asks for a scene, a single (which
+        // lands once the window closes) moves a show to its next scene, or
+        // else counts as you being here: on a touchless board whose only
+        // button this is, it dismisses an active alert first; else it cycles
+        // brightness.
+        static DoublePress pwr_presses = {};
+        const bool pwr = power_hal_pwr_pressed() && !idle_consume_wake_press();
+        const PressKind press = double_press_feed(&pwr_presses, millis(), pwr, PWR_DOUBLE_MS);
+        if (press == PRESS_DOUBLE && (director_play_scene() || director_next_scene())) {
+            // handled
+        } else if (press != PRESS_NONE && !director_next_scene()) {
+            if (!director_button(board_caps().button_count == 0)) brightness_cycle();
         }
 
         pair_tick();

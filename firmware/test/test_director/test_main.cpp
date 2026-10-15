@@ -88,6 +88,32 @@ static void test_screensaver_calm_dip_keeps_one_clawd(void) {
     assert_one_clawd();
 }
 
+// PWR double press: a show with any scene, from the meters only, that
+// leaves the automatic shows' cooldown alone; a single press mid-scene moves
+// on to the next scene; then he waves, walks off and comes home.
+static void test_pwr_asks_for_a_scene_and_the_next_one(void) {
+    fresh_director();
+    world.has_big = true;
+    run_for(1000);
+    TEST_ASSERT_EQUAL_STRING("home", director_beat_name());
+    TEST_ASSERT_FALSE(director_next_scene());            // nothing to move on from
+    TEST_ASSERT_TRUE(director_play_scene());
+    TEST_ASSERT_EQUAL_STRING("show", director_beat_name());
+    for (int i = 0; i < 2000 && !(performing && step == 4); i++) run_for(TICK_MS);
+    TEST_ASSERT_TRUE_MESSAGE(performing && step == 4, "a scene is playing");
+    TEST_ASSERT_FALSE(show_gate.shown);                  // asked for: no cooldown used up
+    TEST_ASSERT_TRUE(director_next_scene());
+    TEST_ASSERT_EQUAL(4, step);                          // still the scene, a new one
+    for (int i = 0; i < 9000 && beat == B_SHOW; i++) run_for(TICK_MS);   // up to 90 s
+    TEST_ASSERT_EQUAL_STRING("home", director_beat_name());
+    assert_one_clawd();
+
+    director_alert("needs you");
+    run_for(500);
+    TEST_ASSERT_FALSE(director_play_scene());            // not over an alert
+    director_alert_clear();
+}
+
 // Seeded fuzz: activity, prompts, stops, usage moving, fresh windows,
 // alerts and clears, taps, buttons, the link dropping, and the QA beats, at
 // random moments over a long stretch.
@@ -143,7 +169,10 @@ static void fuzz(uint32_t seed, uint32_t total_ms, bool has_big) {
         case 12:         world.meters_live = fz_next() % 4 != 0; continue;
         case 13: {
             static const char* const BEATS[] = { "show", "screensaver", "lurk", "peek", "joy", "home" };
-            director_debug(BEATS[fz_next() % 6]);
+            const uint32_t pick = fz_next() % 8;
+            if (pick == 6)      (void)director_play_scene();   // PWR double press
+            else if (pick == 7) (void)director_next_scene();   // PWR single press
+            else                director_debug(BEATS[pick]);
             continue;
         }
         case 14:         director_set_liveliness((int)fz_range(1, 5)); continue;
@@ -337,6 +366,7 @@ static void test_fuzz_one_clawd_at_every_attention_animation(void) {
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_screensaver_calm_dip_keeps_one_clawd);
+    RUN_TEST(test_pwr_asks_for_a_scene_and_the_next_one);
     RUN_TEST(test_fuzz_one_clawd_with_full_size_sprite);
     RUN_TEST(test_fuzz_one_clawd_without_full_size_sprite);
     RUN_TEST(test_no_nonsense_sits_still_through_everything_but_taps);

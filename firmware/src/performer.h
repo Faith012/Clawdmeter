@@ -46,6 +46,9 @@ void performer_perform(int anim_index, uint32_t loop_ms);
 // Idle-group scenes (magnifier, walking). Never the same scene twice running
 // (tracked separately for shows and calm dips).
 void performer_perform_group(int group, uint32_t loop_ms, bool calm);
+// Any show scene from every mood group (a scene asked for with PWR), never
+// the same one twice running.
+void performer_perform_any(uint32_t loop_ms);
 void performer_release(void);   // stop now, snap to the idle pose where he is
 bool performer_busy(void);      // walking or performing
 bool performer_visible(void);   // any of him is on screen right now

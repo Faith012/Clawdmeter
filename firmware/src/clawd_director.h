@@ -49,6 +49,15 @@ void director_set_pairing_touch(bool on);
 // then skips the button's normal action, push to talk or brightness);
 // otherwise false.
 bool director_button(bool main_button);
+// PWR double press: a show now, with any scene (not the mood group's), that
+// doesn't use up the automatic shows' cooldown. Only from the meters at
+// rest (home or a corner act); false otherwise, and the caller treats it as
+// a single press.
+bool director_play_scene(void);
+// PWR single press during a show: the next scene (any, never the same twice
+// running) if one is playing. True while a show is on (the press is used
+// up), false otherwise.
+bool director_next_scene(void);
 // Apply a liveliness level (clawd_policy.h) now: the tuning changes, and
 // what the new level rules out (a show, the screensaver, idle acts, a
 // pending reaction) stops.

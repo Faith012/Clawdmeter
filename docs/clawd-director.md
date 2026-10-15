@@ -361,9 +361,20 @@ a board capability, with no NVS override, desktop setting, or serial toggle.
 
 - BOOT (Space) and SECONDARY (Shift+Tab): unchanged. They also count as
   engagement and wake the screensaver.
-- PWR short press: cycles brightness and counts as engagement (waking the
-  screensaver, face or calm dip). Hold to pair is unchanged.
-- Shows are earned rather than opened by a button or a tap.
+- PWR presses go through a double-press detector (`double_press.h`,
+  `PWR_DOUBLE_MS` = 450 ms, since the AXP2101 reports a short press on
+  release), so a single press lands when that window closes.
+- PWR double press on the meters at rest (`home` or `corner`):
+  `director_play_scene()` starts a `show` asked for by you. It plays any
+  show scene (`performer_perform_any`, never the same twice running) and
+  doesn't use up the show gate, so earned shows keep their own pace. It
+  works at every liveliness level, No-nonsense included. Anywhere else (an
+  alert, the screensaver, a show already on) it counts as a single press.
+- PWR single press during a show: `director_next_scene()` plays another
+  scene if one is on (otherwise the press is used up). Elsewhere it cycles
+  brightness and counts as engagement (waking the screensaver, face or calm
+  dip). Hold to pair is unchanged.
+- Other shows are earned rather than opened by a button or a tap.
 
 ## Tunables
 

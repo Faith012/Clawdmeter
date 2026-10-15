@@ -196,6 +196,7 @@ void performer_walk_off(int, uint16_t spd) { p_state = P_WALK_OUT; p_until = now
 void performer_run_off(int side, uint16_t from, uint16_t, uint32_t) { performer_walk_off(side, from); }
 void performer_perform(int, uint32_t loop_ms) { p_state = P_SCENE; p_until = now() + loop_ms + 2000; }
 void performer_perform_group(int, uint32_t loop_ms, bool) { performer_perform(0, loop_ms); }
+void performer_perform_any(uint32_t loop_ms) { performer_perform(0, loop_ms); }
 void performer_release(void) { if (p_state != P_OFF) p_state = P_STAND; }
 bool performer_busy(void) { return p_state == P_WALK_IN || p_state == P_WALK_OUT || p_state == P_SCENE; }
 bool performer_visible(void) { return p_state != P_OFF; }
