@@ -8,6 +8,40 @@ to the v2.1.0 this fork is based on, is in
 
 Each release's section below is also its GitHub release text.
 
+## v2.5.0
+
+Firmware only: the desktop app is the same as v2.3.1. Update the board from
+the app's **Flash** page.
+
+### What's Changed
+
+* **Clawd Jump, a game on the ESP32-C6-Touch-AMOLED-2.16.** Hold a finger
+  on the screen for about 2 seconds. Clawd bounces up an endless stack of
+  platforms on his own, and you steer him by tilting the board left or
+  right. Leaving one side of the screen brings him in from the other, and
+  the view scrolls up as he climbs. The gaps grow with the score. Fall off
+  the bottom and the screen shows your score and your best, which the board
+  keeps across restarts; a tap plays again.
+  ([dc1373d](https://github.com/Faith012/Clawdmeter/commit/dc1373d),
+  [design](https://github.com/Faith012/Clawdmeter/blob/main/docs/superpowers/specs/2026-10-15-clawd-jump-design.md))
+  * **Leave** with a single PWR press or another 2-second hold. The game also
+    ends on its own 30 seconds after game over, or when the screen sleeps.
+    Holding PWR for 3 seconds still clears pairing.
+  * **Alerts** pause it: the meters and the alert come back, and afterwards
+    the game returns frozen with a play sign; a tap carries on.
+  * The screen doesn't rotate while you play, and no shows or screensaver
+    interrupt it. The meters keep updating underneath.
+
+  Clawd is drawn from the official "jumping" animation, on a grid of 4 px
+  cells written straight to the panel; only the cells that change each
+  frame are sent, at about 30 frames a second. The grid's 29 KB are taken
+  only while you play.
+
+Tested on an ESP32-C6-Touch-AMOLED-2.16. Other boards are unchanged: the
+game needs a tilt reading (`imu_hal_tilt`) and `direct_performer`.
+
+**Full Changelog**: https://github.com/Faith012/Clawdmeter/compare/v2.4.0...v2.5.0
+
 ## v2.4.0
 
 Firmware only: the desktop app is the same as v2.3.1. Update the board from
