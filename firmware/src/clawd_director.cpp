@@ -91,6 +91,7 @@ static void go(Beat b) {
     beat = b;
     step = 0;
     on_demand = false;
+    if (b != B_HOME) mascot_act_release();    // a held status act wraps up for whatever comes
     wait_until = now_ms();
     mascot_autonomy(b == B_HOME && autonomy_wanted());
 }
@@ -716,10 +717,13 @@ static void run_home(uint32_t now) {
         go(B_SHOW);
         return;
     }
-    // Status mode: the state's act, looped. snappy skips the idle lead-in so
-    // it reads as one loop; shows and the screensaver above come first.
+    // Status mode: the state's act, held for as long as the state lasts (the
+    // laptop comes out once, then he types); when the state moves on it plays
+    // out. Shows and the screensaver above come first (go() releases it).
     const char* loop = status == STATUS_WORKING ? "laptop" : status == STATUS_THINKING ? "magnifier" : NULL;
-    if (loop && mascot_seated() && mascot_act(loop, 1, true)) go(B_CORNER);
+    const char* held = mascot_held();
+    if (held && (!loop || strcmp(held, loop) != 0)) mascot_act_release();
+    else if (loop && !held && mascot_seated()) mascot_act_held(loop);
 }
 
 void director_tick(void) {

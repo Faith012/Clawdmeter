@@ -45,7 +45,8 @@ static uint32_t m_rng = 12345;
 
 static uint32_t m_rand(void) { m_rng ^= m_rng << 13; m_rng ^= m_rng >> 17; m_rng ^= m_rng << 5; return m_rng; }
 
-static void m_seat(void) { m_mode = M_SEATED; m_seated_since = now(); }
+static bool     m_hold = false;          // a held act (mascot_act_held) loops until released
+static void m_seat(void) { m_mode = M_SEATED; m_seated_since = now(); m_hold = false; }
 static void m_walk(MAfter then, uint16_t spd) {
     m_mode = M_WALK; m_after = then; m_until = now() + scaled(1500, spd);
 }
@@ -76,10 +77,20 @@ bool mascot_act(const char* name, uint8_t times, bool, uint16_t speed_pct) {
     if (m_minimal) return false;
     if (!(m_mode == M_SEATED || (m_mode == M_ACT && m_act_auto))) return false;
     fake_last_act = name;
-    m_mode = M_ACT; m_act_auto = false;
+    m_mode = M_ACT; m_act_auto = false; m_hold = false;
     m_until = now() + scaled(1200 * (times ? times : 1), speed_pct);
     return true;
 }
+
+bool mascot_act_held(const char* name) {
+    if (!mascot_act(name, 1, true, 100)) return false;
+    m_hold = true;
+    return true;
+}
+void mascot_act_release(void) {
+    if (m_hold) { m_hold = false; m_until = now() + 600; }   // the outro
+}
+const char* mascot_held(void) { return m_mode == M_ACT && m_hold ? fake_last_act : NULL; }
 
 void mascot_leave(uint16_t spd) {
     if (m_minimal || m_mode == M_AWAY) return;
@@ -156,7 +167,7 @@ void mascot_tick(void) {
         m_mode = M_ACT; m_act_auto = true; m_until = now() + 1200;
         return;
     case M_ACT:
-        if (done(m_until)) m_seat();
+        if (!m_hold && done(m_until)) m_seat();
         return;
     case M_WALK:
         if (!done(m_until)) return;

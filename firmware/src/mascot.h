@@ -34,6 +34,12 @@ void mascot_autonomy(bool on);       // idle acts + lurk trips while seated
 // ~330 ms) so a reaction to a tap shows on the next frame. speed_pct scales
 // the authored timing (a startle plays a little quick).
 bool mascot_act(const char* anim, uint8_t times, bool snappy = false, uint16_t speed_pct = 100);
+// An act whose loop holds (laptop: he takes it out once, then types) until
+// mascot_act_release(): then the rest plays out and he sits. snappy, like a
+// reaction. Status mode's working / thinking.
+bool mascot_act_held(const char* anim);
+void mascot_act_release(void);
+const char* mascot_held(void);       // the held act's name, or NULL
 void mascot_leave(uint16_t speed_pct);                 // walk off the nearest edge (a lurk finishes, no slower, and he stays out)
 void mascot_return(int from_side, uint16_t speed_pct); // -1 left / +1 right edge → seat
 // Something to react to while he's out of his seat: cut a lurk trip short

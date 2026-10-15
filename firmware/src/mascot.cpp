@@ -49,6 +49,7 @@ static int      walk_target = 0;
 static After    after = AFTER_SEAT;
 static uint8_t  act_left = 0;
 static bool     act_auto = false;      // current act was his own idea
+static bool     act_hold = false;      // hold the act's loop until mascot_act_release()
 static bool     autonomy = false;
 static bool     minimal = false;
 static bool     attn = false;
@@ -151,6 +152,7 @@ static void seat(void) {
     x = slot_x;
     facing = +1;
     act_left = 0;
+    act_hold = false;
     seated_since = millis();
     int g = usage_rate_group();
     if (g < 0 || g > 3) g = 0;
@@ -307,11 +309,22 @@ bool mascot_act(const char* name, uint8_t times, bool snappy, uint16_t speed_pct
     speed = speed_pct ? speed_pct : 100;   // not whatever the last walk ran at
     act_left = times ? times : 1;
     act_auto = false;
+    act_hold = false;
     facing = +1;
     mode = M_ACT;
     draw_corner();
     return true;
 }
+
+bool mascot_act_held(const char* name) {
+    if (!mascot_act(name, 1, true)) return false;
+    act_hold = true;
+    return true;
+}
+
+void mascot_act_release(void) { act_hold = false; }
+
+const char* mascot_held(void) { return mode == M_ACT && act_hold && anim ? anim->name : NULL; }
 
 void mascot_leave(uint16_t spd) {
     if (!img || minimal) return;
@@ -489,7 +502,8 @@ void mascot_tick(void) {
 
     const bool walking = mode == M_WALK || mode == M_BIG_IN || mode == M_BIG_OUT;
     uint16_t next = frame + 1;
-    if (walking && frame == a->loop_end) next = a->loop_start;   // hold the gait loop
+    // Hold the gait loop, or a held act's loop (laptop typing) until released.
+    if ((walking || (mode == M_ACT && act_hold)) && frame == a->loop_end) next = a->loop_start;
 
     if (next >= a->frame_count) {
         if (mode == M_BIG_ACT || mode == M_SEAT_ATTN) {   // wave, point, wave, ...

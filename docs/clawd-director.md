@@ -442,18 +442,21 @@ priority first:
 |---|---|---|---|
 | limit | `st` is `limited` | sits still | `Limit reached` |
 | waiting | an alert is up | the attention beat | the alert |
-| working | `a` > 0 and no Stop since the last prompt | `laptop`, looped | `Claude is working…` |
-| thinking | a prompt (`e:"p"`/`"b"`), no tool calls now, no Stop since | `magnifier`, looped | `Claude is thinking…` |
+| working | `a` > 0 and no Stop since the last prompt | `laptop`: out once, then typing until the state ends | `Claude is working…` |
+| thinking | a prompt (`e:"p"`/`"b"`), no tool calls now, no Stop since | `magnifier`, repeated | `Claude is thinking…` |
 | done | a Stop in the last 5 min (`STATUS_DONE_MS`) | `jumping happy` once, then still | `Done` |
 | idle | none of these | idle acts as usual | the whimsical verbs |
 
 - A Stop at or after the last prompt ends the turn even while `a` still
   counts that minute's tool calls. An open turn with nothing for 10 min
   (`STATUS_TURN_STALE_MS`) is over: a turn ended with Esc sends no Stop.
-- `run_home` loops the state's act with `snappy` (no idle lead-in), after
-  the screensaver and show gates, so earned shows, asked-for scenes and the
-  screensaver still come first. Working, thinking, done and limit turn the
-  corner's autonomy off (`autonomy_wanted()`); idle and waiting keep it.
+- `run_home` holds the state's act (`mascot_act_held`: the act's loop
+  region repeats until `mascot_act_release`, so the laptop comes out once
+  and he types for as long as Claude works), after the screensaver and show
+  gates, so earned shows, asked-for scenes and the screensaver still come
+  first. When the state moves on, or `go()` leaves home, the act is released
+  and plays out. Working, thinking, done and limit turn the corner's
+  autonomy off (`autonomy_wanted()`); idle and waiting keep it.
 - Done replaces the long-turn wave: `update_status` queues `jumping happy`
   as a corner reaction, so it plays once whatever act is running ends.
 - It's informational, so it works at every liveliness level. Off (or in
