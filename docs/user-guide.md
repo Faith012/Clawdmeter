@@ -173,6 +173,22 @@ and character rules.
 
 The LCD-4 has one user button, BOOT. Its PWR key is a hardware reset.
 
+### Clawd Jump
+
+On the AMOLED-2.16 (C6), hold a finger on the screen for about 2 seconds to
+play Clawd Jump. Clawd bounces up a stack of platforms on his own; tilt the
+board left or right to steer him. Leaving one side of the screen brings him
+in from the other. Fall off the bottom and the game is over: the screen shows
+your score and your best, and a tap plays again.
+
+- **Leave the game:** press PWR once, or hold the screen for 2 seconds again.
+  It also ends on its own 30 seconds after game over, or when the screen
+  goes to sleep.
+- **Alerts** pause the game: the meters and the alert come back. Afterwards
+  the game returns frozen with a play sign; tap to carry on.
+- The screen doesn't rotate while you play. Holding PWR for 3 seconds still
+  clears pairing.
+
 ## Settings and files
 
 On Linux and macOS, config and state live in `~/.config/clawdmeter/`.

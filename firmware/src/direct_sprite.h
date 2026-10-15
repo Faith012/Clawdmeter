@@ -23,6 +23,8 @@ struct DirectSprite {
     uint8_t*        next;     // cols * rows: the frame being composed
     const uint16_t* pal;      // palette of what's drawn
     bool            any;      // any coloured cell drawn
+    bool            opaque;   // a whole black scene (Clawd Jump): emptied cells are
+                              // painted black, not handed back
 };
 
 // Allocate the grid (internal RAM) and grow the shared blit buffer to one
@@ -36,6 +38,8 @@ void direct_sprite_put(DirectSprite* s, const uint8_t* src, int w, int h, bool m
 void direct_sprite_commit(DirectSprite* s, const uint16_t* pal);
 // Hand back everything it has on the panel.
 void direct_sprite_erase(DirectSprite* s);
+// Free the grid, leaving the panel as it is (whatever redraws it next wins).
+void direct_sprite_free(DirectSprite* s);
 // LVGL rendered [x1, x2] x [y1, y2] into px (RGB565, row-major, that area's
 // width) and is about to send it: write the sprite's coloured cells into it.
 void direct_sprite_overlay(DirectSprite* s, int32_t x1, int32_t y1, int32_t x2, int32_t y2, uint16_t* px);

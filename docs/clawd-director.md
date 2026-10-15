@@ -382,6 +382,32 @@ a board capability, with no NVS override, desktop setting, or serial toggle.
   brightness and counts as engagement (waking the screensaver, face or calm
   dip). Hold to pair is unchanged.
 - Other shows are earned rather than opened by a button or a tap.
+- PWR press in Clawd Jump: `director_quit_game()` takes it before the
+  double-press detector, so it leaves at once.
+
+## Clawd Jump
+
+A game on boards that have a tilt reading (`imu_hal_tilt`) and
+`direct_performer`, today the AMOLED-2.16 (C6). Design:
+`docs/superpowers/specs/2026-10-15-clawd-jump-design.md`.
+
+- A ~2 s touch hold (main.cpp, `GAME_HOLD_MS`) calls
+  `director_touch_hold()`: from any beat but an alert it starts the `game`
+  beat. The tap that began the hold still had its reaction; entering clears
+  the stage at once (face hidden, performer offstage, corner Clawd away), so
+  the game's Clawd is the only one. The same hold, or a PWR press, leaves:
+  the corner Clawd walks back in from the left (`arrive_meters`).
+- `game.cpp` covers the meters with a black object and draws the world
+  from `jump_game.h` as a 120×120 grid of 4 px cells (an opaque
+  `DirectSprite`: cells it empties are painted black instead of handed back,
+  and `game_overlay` writes the world into whatever LVGL redraws under it).
+  The meters keep updating underneath.
+- An alert hides the game (`game_hide`) and runs `attention` as from home;
+  when it ends the small Clawd stays out and the game returns frozen with a
+  play sign (`game_show`); a tap carries on.
+- It ends on its own 30 s after game over, or when the panel sleeps. A tilt
+  change of 0.08 g counts as activity for the idle timer.
+- `clawd game` on the serial port starts it (`clawd home` leaves).
 
 ## Tunables
 

@@ -18,8 +18,8 @@ static void check_one_clawd(void) {
     if (broke || fake_clawds(s) <= 1) return;
     broke = true;
     broke_at = fake_now_ms;
-    snprintf(broke_what, sizeof(broke_what), "beat %s:%u corner %d big %d performer %d face %d",
-             director_beat_name(), step, s.corner, s.big, s.performer, s.face);
+    snprintf(broke_what, sizeof(broke_what), "beat %s:%u corner %d big %d performer %d face %d game %d",
+             director_beat_name(), step, s.corner, s.big, s.performer, s.face, s.game);
 }
 
 // Which beats a run went through, so a fuzz pass can't be vacuous.
@@ -151,6 +151,35 @@ static void test_pwr_asks_for_a_scene_and_the_next_one(void) {
     director_alert_clear();
 }
 
+// Clawd Jump: the hold starts it with every other Clawd gone; an alert
+// takes the screen back and the game returns once it's over; PWR leaves it
+// and the corner Clawd walks home.
+static void test_game_pauses_for_an_alert_and_pwr_leaves_it(void) {
+    fresh_director();
+    world.has_big = true;
+    run_for(1000);
+    TEST_ASSERT_FALSE(director_quit_game());             // no game: PWR is PWR
+    director_touch_hold();
+    TEST_ASSERT_EQUAL_STRING("game", director_beat_name());
+    run_for(20000);                                      // no shows, no screensaver over it
+    TEST_ASSERT_EQUAL_STRING("game", director_beat_name());
+    TEST_ASSERT_FALSE(fake_mascot_autonomy());
+    director_alert("needs you");
+    TEST_ASSERT_FALSE(fake_game_shown());
+    run_for(1000);
+    TEST_ASSERT_EQUAL_STRING("attention", director_beat_name());
+    director_tap(200);                                   // dismissed
+    for (int i = 0; i < 1000 && beat != B_GAME; i++) run_for(TICK_MS);
+    TEST_ASSERT_EQUAL_STRING("game", director_beat_name());
+    TEST_ASSERT_TRUE(fake_game_shown());
+    TEST_ASSERT_TRUE(director_quit_game());
+    TEST_ASSERT_FALSE(fake_game_shown());
+    run_for(5000);
+    TEST_ASSERT_EQUAL_STRING("home", director_beat_name());
+    TEST_ASSERT_TRUE(fake_corner_seated_still() || fake_mascot_autonomy());
+    assert_one_clawd();
+}
+
 // Seeded fuzz: activity, prompts, stops, usage moving, fresh windows,
 // alerts and clears, taps, buttons, the link dropping, and the QA beats, at
 // random moments over a long stretch.
@@ -163,6 +192,8 @@ static uint32_t fz_range(uint32_t lo, uint32_t hi) { return lo + fz_next() % (hi
 static void fresh_director(void) {
     attention_on = false;
     resume_screensaver = false;
+    game_paused = false;
+    game_stop();
     react_anim = NULL;
     joy_pending = false;
     ClawdTuning fast;
@@ -203,7 +234,13 @@ static void fuzz(uint32_t seed, uint32_t total_ms, bool has_big) {
         case 7:          director_alert("needs you"); continue;
         case 8:          director_alert_clear(); continue;
         case 9: case 10: director_tap((int)fz_range(0, 479)); continue;
-        case 11:         (void)director_button(true); continue;
+        case 11:
+            switch (fz_next() % 3) {
+            case 0:  (void)director_button(true); break;
+            case 1:  director_touch_hold(); break;   // Clawd Jump, or out of it
+            default: (void)director_quit_game(); break;   // PWR
+            }
+            continue;
         case 12:         world.meters_live = fz_next() % 4 != 0; continue;
         case 13: {
             static const char* const BEATS[] = { "show", "screensaver", "lurk", "peek", "joy", "home" };
@@ -408,6 +445,7 @@ int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_screensaver_calm_dip_keeps_one_clawd);
     RUN_TEST(test_pwr_asks_for_a_scene_and_the_next_one);
+    RUN_TEST(test_game_pauses_for_an_alert_and_pwr_leaves_it);
     RUN_TEST(test_status_mode_shows_what_claude_is_doing);
     RUN_TEST(test_fuzz_one_clawd_with_full_size_sprite);
     RUN_TEST(test_fuzz_one_clawd_without_full_size_sprite);

@@ -91,7 +91,7 @@ void direct_sprite_commit(DirectSprite* s, const uint16_t* pal) {
     // Hand back first, against the old frame; then the new frame is the one
     // on the panel, so blit (and any flush that follows) paints it.
     static const DirectSpriteRun none = [](void*, int, int, int) {};
-    direct_sprite_diff(s->drawn, s->next, s->cols, s->rows, false, give_back, none, s);
+    if (!s->opaque) direct_sprite_diff(s->drawn, s->next, s->cols, s->rows, false, give_back, none, s);
     // `drawn` must hold the new frame before blitting it; keep the old one in
     // `next` to diff against.
     const size_t n = (size_t)s->cols * s->rows;
@@ -101,8 +101,9 @@ void direct_sprite_commit(DirectSprite* s, const uint16_t* pal) {
         s->next[i] = t;
     }
     s->pal = pal;
+    // Opaque: the emptied cells are blitted too (black).
     direct_sprite_diff(s->next, s->drawn, s->cols, s->rows, repaint_all,
-                       [](void*, int, int, int) {}, blit, s);
+                       s->opaque ? blit : none, blit, s);
     s->any = false;
     for (size_t i = 0; i < n && !s->any; i++) s->any = s->drawn[i] != 0;
 }
@@ -111,6 +112,13 @@ void direct_sprite_erase(DirectSprite* s) {
     if (!s->drawn || !s->any) return;
     direct_sprite_clear(s);
     direct_sprite_commit(s, s->pal);
+}
+
+void direct_sprite_free(DirectSprite* s) {
+    heap_caps_free(s->drawn);
+    heap_caps_free(s->next);
+    s->drawn = s->next = NULL;
+    s->any = false;
 }
 
 void direct_sprite_overlay(DirectSprite* s, int32_t x1, int32_t y1, int32_t x2, int32_t y2, uint16_t* px) {

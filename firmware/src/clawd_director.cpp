@@ -4,6 +4,7 @@
 #include "mascot.h"
 #include "performer.h"
 #include "face.h"
+#include "game.h"
 #include "ui.h"
 #include "idle.h"
 #include "minimal_mode.h"
@@ -29,9 +30,10 @@ enum Beat {
     B_RUN_HOME,      // the performance stops, he runs off, the corner walks home
     B_ATTENTION,     // the big Clawd fetches you
     B_PEEK,          // a tap on the meters: hop, duck out, the face comes up curious for a while
+    B_GAME,          // Clawd Jump (game.h) has the screen
 };
 static const char* const BEAT_NAMES[] = {
-    "home", "corner", "show", "screensaver", "face-home", "run-home", "attention", "peek",
+    "home", "corner", "show", "screensaver", "face-home", "run-home", "attention", "peek", "game",
 };
 
 static Beat     beat = B_HOME;
@@ -54,6 +56,7 @@ static AttnFrom attn_from = ATTN_FROM_HOME;   // what it interrupted
 static uint32_t attn_mark = 0;                // last_engagement right after the alert
 static bool     attn_engaged = false;         // you showed up since the alert (sticky across refreshes)
 static bool     resume_screensaver = false;   // decided when attention ends
+static bool     game_paused = false;          // an alert hid Clawd Jump; it comes back after
 
 // A notice / wave waiting for him to hurry home from a lurk trip.
 static const char* react_anim = NULL;
@@ -178,9 +181,9 @@ static void end_attention(AttnEnd how) {
     attention_on = false;
     if (attention_end_tells_host(how)) attention_dismissed = true;
     const bool engaged = attn_engaged || (int32_t)(last_engagement - attn_mark) > 0;
-    resume_screensaver = attention_resumes_screensaver(attn_from, how, engaged);
+    resume_screensaver = !game_paused && attention_resumes_screensaver(attn_from, how, engaged);
     ui_set_alert_text(NULL);
-    mascot_attention(false, !resume_screensaver);
+    mascot_attention(false, !resume_screensaver && !game_paused);
     Serial.printf("[%lu] director: attention over (%s)%s\n", (unsigned long)now_ms(),
                   how == ATTN_END_TAP ? "tap" : how == ATTN_END_CLEAR ? "cleared" : "timeout",
                   resume_screensaver ? ", back to the screensaver" : "");
@@ -210,6 +213,10 @@ void director_alert(const char* message) {
     if (attention_on) return;                 // refresh text + timers only
     attention_on = true;
     if (beat == B_ATTENTION) { step = 0; return; }
+    if (beat == B_GAME) {                     // the meters and the alert come back
+        game_hide();
+        game_paused = true;
+    }
     // Attention never waits: interrupt whatever is on.
     if (face_visible() || performing) {
         face_set_resting(false);
@@ -258,6 +265,7 @@ static void tap_home(int x) {
 void director_tap(int x) {
     engage();
     if (attention_on) { end_attention(ATTN_END_TAP); return; }   // a dismissing tap does nothing else
+    if (beat == B_GAME) { game_tap(); return; }
     resume_screensaver = false;                   // "show me the meters" wins
     if (minimal) return;
     if (beat == B_HOME || beat == B_CORNER) {
@@ -322,6 +330,40 @@ void director_set_liveliness(int level) {
     if (!t.screensaver) resume_screensaver = false;
     if ((beat == B_SHOW && !t.shows) || (beat == B_SCREENSAVER && !t.screensaver)) to_meters(false);
     mascot_autonomy(beat == B_HOME && autonomy_wanted());
+}
+
+// ─── Clawd Jump ───────────────────────────────────────────────────────────────
+// The game has the whole screen, so the other Clawds go at once (one Clawd:
+// the game's is the only one); on the way out the corner Clawd walks back in.
+static void clear_stage(void) {
+    face_hide_now();
+    performer_place_offstage(PERFORMER_LEFT);
+    performing = false;
+    mascot_place_away();
+    react_anim = NULL;
+    resume_screensaver = false;
+}
+
+static void quit_game(void) {
+    game_stop();
+    game_paused = false;
+    if (beat == B_GAME) arrive_meters();
+}
+
+void director_touch_hold(void) {
+    engage();
+    if (beat == B_GAME) { quit_game(); return; }
+    if (minimal || attention_on || game_paused || pairing_touch || !game_available()) return;
+    if (!game_start()) return;
+    clear_stage();
+    go(B_GAME);
+}
+
+bool director_quit_game(void) {
+    if (beat != B_GAME && !game_paused) return false;
+    engage();
+    quit_game();
+    return true;
 }
 
 static void indev_cb(lv_event_t* e) {
@@ -622,6 +664,11 @@ static void run_attention(uint32_t now) {
     // Over: wait for the big one to leave and the small one to sit down (or,
     // when the screensaver resumes, to stay out of sight).
     if (mascot_in_attention() || mascot_busy()) return;
+    if (game_paused) {
+        game_paused = false;
+        if (game_show()) { clear_stage(); go(B_GAME); return; }
+        game_stop();
+    }
     if (resume_screensaver) {
         resume_screensaver = false;
         if (!minimal && ui_meters_live()) { go(B_SCREENSAVER); return; }
@@ -741,6 +788,11 @@ static void run_home(uint32_t now) {
     else if (loop && !held && mascot_seated()) mascot_act_held(loop);
 }
 
+static void run_game(void) {
+    // Game over that nobody plays again, or the panel went to sleep.
+    if (idle_is_asleep() || !game_tick()) quit_game();
+}
+
 void director_tick(void) {
     const uint32_t now = now_ms();
     const int activity = signals_activity();
@@ -760,6 +812,7 @@ void director_tick(void) {
     case B_RUN_HOME:    run_run_home(now); break;
     case B_ATTENTION:   run_attention(now); break;
     case B_PEEK:        run_peek(now); break;
+    case B_GAME:        run_game(); break;
     }
 }
 
@@ -769,9 +822,14 @@ bool director_debug(const char* name) {
         // "Show me the meters" (a tap anywhere but home, without the peek).
         engage();
         if (attention_on) { end_attention(ATTN_END_TAP); return true; }
+        if (director_quit_game()) return true;
         resume_screensaver = false;
         if (!minimal) to_meters(false);
         return true;
+    }
+    if (strcmp(name, "game") == 0) {      // Clawd Jump now, as the 2 s hold would
+        if (beat != B_GAME) director_touch_hold();
+        return beat == B_GAME;
     }
     if (strcmp(name, "attention") == 0)   { director_alert("Clawdmeter test alert"); return true; }
     if (minimal) return true;             // nothing else exists in minimal mode

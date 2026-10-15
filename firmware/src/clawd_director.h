@@ -63,6 +63,12 @@ bool director_play_scene(void);
 // running) if one is playing. True while a show is on (the press is used
 // up), false otherwise.
 bool director_next_scene(void);
+// Clawd Jump (game.h). A ~2 s hold on the panel: starts the game from the
+// meters (not over an alert), or leaves it while it runs.
+void director_touch_hold(void);
+// A PWR press: leaves the game if it's on (or paused under an alert) and
+// returns true (the press is used up); false otherwise.
+bool director_quit_game(void);
 // Apply a liveliness level (clawd_policy.h) now: the tuning changes, and
 // what the new level rules out (a show, the screensaver, idle acts, a
 // pending reaction) stops.
@@ -81,7 +87,7 @@ const char*  director_beat_name(void);
 
 // QA hook for the `clawd <beat>` serial command: start a beat now so it can
 // be captured with `screenshot` on hardware. beat = show | screensaver |
-// attention | joy | lurk | peek [x] | home. Returns false for an unknown
+// attention | joy | lurk | peek [x] | game | home. Returns false for an unknown
 // name, or for show / screensaver / lurk / peek while another beat is still
 // running (lurk also needs the full-size sprite, i.e. PSRAM). `peek` is a tap
 // on the meters at x (default: three quarters across).

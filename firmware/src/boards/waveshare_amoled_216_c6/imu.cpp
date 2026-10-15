@@ -19,6 +19,7 @@ static uint8_t  candidate_rotation = 0;
 static uint32_t candidate_since    = 0;
 static uint32_t last_poll_ms       = 0;
 static bool     imu_ok             = false;
+static bool     hold               = false;   // Clawd Jump: keep the rotation
 
 // Dead zone: the dominant axis must beat the other by 25 % before we commit,
 // otherwise (near 45°, e.g. a tilted stand) the current quadrant is kept.
@@ -59,6 +60,7 @@ void imu_hal_tick(void) {
     if (!imu.getAccelerometer(ax, ay, az)) return;
 
     uint8_t target = accel_to_rotation(ax, ay);
+    if (hold) target = 255;
     if (target == 255 || target == current_rotation) {
         candidate_rotation = current_rotation;
         return;
@@ -73,3 +75,21 @@ void imu_hal_tick(void) {
 }
 
 uint8_t imu_hal_rotation_quadrant(void) { return current_rotation; }
+
+void imu_hal_hold_rotation(bool on) { hold = on; }
+
+// The screen's x axis in the sensor's frame turns with the rotation: at 0
+// it's the sensor's -y (checked on hardware: + = right edge down).
+#define TILT_SIGN -1.0f
+
+bool imu_hal_tilt(float* x) {
+    float ax, ay, az;
+    if (!imu_ok || !imu.getAccelerometer(ax, ay, az)) return false;
+    switch (current_rotation) {
+    case 0:  *x = TILT_SIGN * ay;  break;
+    case 1:  *x = TILT_SIGN * ax;  break;
+    case 2:  *x = -TILT_SIGN * ay; break;
+    default: *x = -TILT_SIGN * ax; break;
+    }
+    return true;
+}

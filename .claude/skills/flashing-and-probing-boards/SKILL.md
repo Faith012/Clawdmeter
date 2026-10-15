@@ -41,7 +41,7 @@ and fails with a clear message when no board or several are attached. If
 | `info` | JSON: env, version, panel revision, link state |
 | `ble` | Link state, bonds, owner, peers |
 | `perf` | Redraw cost of the last face rise / settle / drop / performance |
-| `clawd <show\|screensaver\|attention\|joy\|lurk\|home>` | Force a director beat |
+| `clawd <show\|screensaver\|attention\|joy\|lurk\|game\|home>` | Force a director beat (`game`: Clawd Jump, on boards that have it) |
 | `clawd peek <x>` | The peek beat, as a tap at x would |
 | `liveliness [1-5]` | Print or set Clawd's liveliness (kept in NVS) until the app sends its own `lv` |
 | `attention_anim [seconds]` | Print or set how long Clawd points and waves for an alert (0 = off; kept in NVS) until the app sends its own `aa` |

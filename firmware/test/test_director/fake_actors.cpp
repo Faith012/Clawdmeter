@@ -7,6 +7,7 @@
 #include "mascot.h"
 #include "performer.h"
 #include "face.h"
+#include "game.h"
 #include "ui.h"
 #include "idle.h"
 #include "minimal_mode.h"
@@ -243,6 +244,21 @@ void face_blink(bool twice) { f_busy_until = now() + (twice ? 500 : 250); }
 void face_set_resting(bool) {}
 void face_look_at_x(int, uint32_t hold_ms) { f_busy_until = now() + hold_ms + 300; }
 
+// ─── Clawd Jump (game.h) ─────────────────────────────────────────────────────
+// Its Clawd is on screen while it shows. Nobody plays: a minute after it
+// starts or comes back it's game over gone stale, and it asks to end.
+static bool     g_on = false, g_shown = false;
+static uint32_t g_since = 0;
+bool game_available(void) { return true; }
+bool game_start(void) { g_on = g_shown = true; g_since = now(); return true; }
+void game_stop(void) { g_on = g_shown = false; }
+void game_hide(void) { g_shown = false; }
+bool game_show(void) { if (!g_on) return false; g_shown = true; g_since = now(); return true; }
+void game_tap(void) {}
+bool game_tick(void) { return now() - g_since < 60000; }
+void game_overlay(int32_t, int32_t, int32_t, int32_t, uint16_t*) {}
+bool fake_game_shown(void) { return g_shown; }
+
 // ─── The situation ───────────────────────────────────────────────────────────
 bool ui_meters_live(void) { return world.meters_live; }
 void ui_set_alert_text(const char*) {}
@@ -265,6 +281,7 @@ OnScreen fake_on_screen(void) {
     s.big = (m_mode == M_LURK || m_mode == M_BIG_IN || m_mode == M_BIG_ACT || m_mode == M_BIG_OUT);
     s.performer = performer_visible();
     s.face = face_visible();
+    s.game = g_shown;
     return s;
 }
 
@@ -272,5 +289,5 @@ bool fake_corner_seated_still(void) { return m_mode == M_SEATED; }
 bool fake_attention_animating(void) { return mascot_in_attention(); }
 
 int fake_clawds(const OnScreen& s) {
-    return (int)s.corner + (int)s.big + (int)s.performer + (int)s.face;
+    return (int)s.corner + (int)s.big + (int)s.performer + (int)s.face + (int)s.game;
 }

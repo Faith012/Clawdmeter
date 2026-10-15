@@ -10,6 +10,7 @@
 #include "performer.h"
 #include "double_press.h"
 #include "mascot.h"
+#include "game.h"
 #include "clawd_director.h"
 #include "usage_rate.h"
 #include "signals.h"
@@ -57,6 +58,7 @@ static void my_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px_m
     // before it's sent, so the panel never shows the meters where he stands.
     performer_overlay(area->x1, area->y1, area->x2, area->y2, (uint16_t*)px_map);
     mascot_overlay(area->x1, area->y1, area->x2, area->y2, (uint16_t*)px_map);
+    game_overlay(area->x1, area->y1, area->x2, area->y2, (uint16_t*)px_map);
     display_hal_draw_bitmap(area->x1, area->y1, w, h, (uint16_t*)px_map);
     lv_display_flush_ready(disp);
 }
@@ -299,6 +301,7 @@ void setup() {
 }
 
 static ble_state_t last_ble_state = BLE_STATE_INIT;
+#define GAME_HOLD_MS 2000
 static int shown_group = 0;   // mood group last logged
 
 // Hold-to-pair gesture: hold the PWR button ~3s, then RELEASE → clear all BLE
@@ -438,8 +441,9 @@ void loop() {
         // else counts as you being here: on a touchless board whose only
         // button this is, it dismisses an active alert first; else it cycles
         // brightness.
+        // In Clawd Jump a press leaves the game, at once.
         static DoublePress pwr_presses = {};
-        const bool pwr = power_hal_pwr_pressed() && !idle_consume_wake_press();
+        const bool pwr = power_hal_pwr_pressed() && !idle_consume_wake_press() && !director_quit_game();
         const PressKind press = double_press_feed(&pwr_presses, millis(), pwr, PWR_DOUBLE_MS);
         if (press == PRESS_DOUBLE && (director_play_scene() || director_next_scene())) {
             // handled
@@ -449,6 +453,15 @@ void loop() {
 
         pair_tick();
         touch_pair_tick();
+
+        // A ~2 s hold on the panel: Clawd Jump, or out of it.
+        static uint32_t touch_since = 0;
+        static bool     hold_fired = false;
+        if (!touch_down) { touch_since = millis(); hold_fired = false; }
+        else if (!hold_fired && millis() - touch_since >= GAME_HOLD_MS) {
+            hold_fired = true;
+            director_touch_hold();
+        }
     }
 
     ble_state_t bs = ble_get_state();

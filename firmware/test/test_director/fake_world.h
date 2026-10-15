@@ -24,6 +24,7 @@ struct OnScreen {
     bool big;              // the full-size sprite (lurk trip, attention)
     bool performer;        // the performer on the meters
     bool face;             // the face, any part of it
+    bool game;             // Clawd Jump's Clawd
 };
 OnScreen fake_on_screen(void);
 bool     fake_corner_seated_still(void);   // in his seat, not acting or walking
@@ -31,3 +32,4 @@ bool     fake_attention_animating(void);   // any part of the attention animatio
 int      fake_clawds(const OnScreen& s);
 extern const char* fake_last_act;          // the last act the corner was asked to play
 bool     fake_mascot_autonomy(void);       // idle acts and lurk trips on
+bool     fake_game_shown(void);            // Clawd Jump is on screen
