@@ -430,6 +430,40 @@ so under `SIM_FAST` 30 s is 5 s of the 20 s alert. Native tests: Off and a
 at Off / 10 s / 30 s (`test_director`). In the sim:
 `SIM_CMDS="300:attention_anim 0"`, or `"aa":0` in a scenario line.
 
+## Status mode
+
+With status mode on (`sm`, default on; `clawd_prefs.cpp`, serial
+`status_mode [0|1]`), the corner Clawd and the status line read out what
+Claude Code is doing. `clawd_status()` (`clawd_policy.cpp`, native-tested)
+works it out every tick from what the director already has, highest
+priority first:
+
+| State | From | Corner | Status line |
+|---|---|---|---|
+| limit | `st` is `limited` | sits still | `Limit reached` |
+| waiting | an alert is up | the attention beat | the alert |
+| working | `a` > 0 and no Stop since the last prompt | `laptop`, looped | `Claude is working…` |
+| thinking | a prompt (`e:"p"`/`"b"`), no tool calls now, no Stop since | `magnifier`, looped | `Claude is thinking…` |
+| done | a Stop in the last 5 min (`STATUS_DONE_MS`) | `jumping happy` once, then still | `Done` |
+| idle | none of these | idle acts as usual | the whimsical verbs |
+
+- A Stop at or after the last prompt ends the turn even while `a` still
+  counts that minute's tool calls. An open turn with nothing for 10 min
+  (`STATUS_TURN_STALE_MS`) is over: a turn ended with Esc sends no Stop.
+- `run_home` loops the state's act with `snappy` (no idle lead-in), after
+  the screensaver and show gates, so earned shows, asked-for scenes and the
+  screensaver still come first. Working, thinking, done and limit turn the
+  corner's autonomy off (`autonomy_wanted()`); idle and waiting keep it.
+- Done replaces the long-turn wave: `update_status` queues `jumping happy`
+  as a corner reaction, so it plays once whatever act is running ends.
+- It's informational, so it works at every liveliness level. Off (or in
+  minimal mode) the state stays idle and everything is as before.
+- `laptop` and `magnifier` are in `CORNER_ANIMS`, so the corner buffer fits
+  them (about 29 KB on a 480 panel).
+- Native tests: `test_clawd_policy` (every state, priorities, an aborted
+  turn, `millis()` wrapping), `test_payload` (`sm`), `test_director` (the
+  readout end to end; the fuzz toggles status mode too).
+
 ## QA
 
 - Native: `pio test -d firmware -e native -f test_clawd_policy` (the rules)
