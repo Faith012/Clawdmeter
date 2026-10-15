@@ -350,10 +350,12 @@ a board capability, with no NVS override, desktop setting, or serial toggle.
   walk-on) are drawn straight to the panel instead (`direct_sprite.{h,cpp}`),
   still in front of the meters: only his coloured cells are drawn, each on
   the sprite's own cell grid; the cells he leaves are handed back to LVGL,
-  which redraws the meters there; and after every area LVGL flushes he
-  paints his cells back over it (`performer_note_flush` and
-  `mascot_note_flush`, from the flush callback), so the meters' own redraws
-  and a rotation's full redraw never cut into him. Shows, calm dips, lurk
+  which redraws the meters there; and every band LVGL renders gets his cells
+  written into it before it goes to the panel (`performer_overlay` and
+  `mascot_overlay`, from the flush callback), so the meters' own redraws
+  and a rotation's full redraw never show through him. (Painting him back
+  after the band was sent let LVGL's merged redraws flash the meters through
+  him in strips on the big scenes.) Shows, calm dips, lurk
   trips and attention then look as they do on S3. The three share one blit
   buffer (one grid row, about 8 KB), since only one Clawd is ever on screen.
 - Without the capability a show is corner acts (pointing, dancing or

@@ -6,9 +6,10 @@
 // direct_performer capability): no screen-sized buffer, and still in front
 // of the meters like the LVGL images PSRAM boards use. Only its coloured
 // cells are drawn. The cells it leaves are handed back to LVGL, which
-// redraws what was under them, and after LVGL flushes an area the sprite
-// paints its cells there again (direct_sprite_note_flush, from the flush
-// callback).
+// redraws what was under them; and whatever LVGL renders under the sprite
+// gets the sprite's cells written into it before it goes to the panel
+// (direct_sprite_overlay, from the flush callback), so the panel never
+// shows a band of meters where he stands.
 //
 // Each sprite owns a cell grid on the panel: column c spans
 // x = org_x + c * cell, row r spans y = org_y + r * cell. A frame is the grid's
@@ -35,8 +36,9 @@ void direct_sprite_put(DirectSprite* s, const uint8_t* src, int w, int h, bool m
 void direct_sprite_commit(DirectSprite* s, const uint16_t* pal);
 // Hand back everything it has on the panel.
 void direct_sprite_erase(DirectSprite* s);
-// LVGL just flushed [x1, x2] x [y1, y2]: paint the sprite's cells there again.
-void direct_sprite_note_flush(DirectSprite* s, int32_t x1, int32_t y1, int32_t x2, int32_t y2);
+// LVGL rendered [x1, x2] x [y1, y2] into px (RGB565, row-major, that area's
+// width) and is about to send it: write the sprite's coloured cells into it.
+void direct_sprite_overlay(DirectSprite* s, int32_t x1, int32_t y1, int32_t x2, int32_t y2, uint16_t* px);
 
 // ─── Pure part (native-tested: test_direct_sprite) ───────────────────────────
 // Row by row, left to right: the runs of cells to hand back (coloured before,

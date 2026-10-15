@@ -166,10 +166,10 @@ static void hide_big(void) {
     }
 }
 
-void mascot_note_flush(int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
+void mascot_overlay(int32_t x1, int32_t y1, int32_t x2, int32_t y2, uint16_t* px) {
     if (!big_direct) return;
-    direct_sprite_note_flush(&big_ds, x1, y1, x2, y2);
-    direct_sprite_note_flush(&lurk_ds, x1, y1, x2, y2);
+    direct_sprite_overlay(&big_ds, x1, y1, x2, y2, px);
+    direct_sprite_overlay(&lurk_ds, x1, y1, x2, y2, px);
 }
 
 static int  off_left_x(void) {

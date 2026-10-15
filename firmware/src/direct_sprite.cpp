@@ -8,8 +8,7 @@
 #include <esp_heap_caps.h>
 
 // One blit buffer for every sprite: one grid row (cols cells x one cell row).
-// Only one Clawd is ever on screen, and nothing blits while another blit is
-// running (LVGL flushes, and so note_flush, run on the same loop).
+// Only one Clawd is ever on screen, and blits run one at a time on the loop.
 static uint16_t* strip = NULL;
 static size_t    strip_px = 0;
 
@@ -112,24 +111,27 @@ void direct_sprite_erase(DirectSprite* s) {
     direct_sprite_commit(s, s->pal);
 }
 
-// Paint the coloured cells of rows [r0, r1] x columns [c0, c1).
-static void paint_rect(DirectSprite* s, int r0, int r1, int c0, int c1) {
-    for (int r = r0; r <= r1; r++) {
-        const uint8_t* d = s->drawn + r * s->cols;
-        for (int c = c0; c < c1;) {
-            if (!d[c]) { c++; continue; }
-            int e = c;
-            while (e < c1 && d[e]) e++;
-            blit(s, r, c, e);
-            c = e;
-        }
-    }
-}
-
-void direct_sprite_note_flush(DirectSprite* s, int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
+void direct_sprite_overlay(DirectSprite* s, int32_t x1, int32_t y1, int32_t x2, int32_t y2, uint16_t* px) {
     if (!s->drawn || !s->any) return;
     int c0, c1, r0, r1;
     span_touch_cells(s->org_x, s->cell, s->cols, x1, x2 + 1, &c0, &c1);
     span_touch_cells(s->org_y, s->cell, s->rows, y1, y2 + 1, &r0, &r1);
-    if (c0 < c1 && r0 < r1) paint_rect(s, r0, r1 - 1, c0, c1);
+    const int w = x2 - x1 + 1;
+    for (int r = r0; r < r1; r++) {
+        int ya = s->org_y + r * s->cell, yb = ya + s->cell;      // the row's band, clipped to the area
+        if (ya < y1) ya = y1;
+        if (yb > y2 + 1) yb = y2 + 1;
+        for (int c = c0; c < c1; c++) {
+            const uint8_t code = s->drawn[r * s->cols + c];
+            if (!code || !s->pal || code >= CLAWD_PALETTE_SIZE) continue;
+            const uint16_t col = s->pal[code];
+            int xa = s->org_x + c * s->cell, xb = xa + s->cell;
+            if (xa < x1) xa = x1;
+            if (xb > x2 + 1) xb = x2 + 1;
+            for (int y = ya; y < yb; y++) {
+                uint16_t* p = px + (size_t)(y - y1) * w + (xa - x1);
+                for (int x = xa; x < xb; x++) *p++ = col;
+            }
+        }
+    }
 }

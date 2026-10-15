@@ -133,8 +133,8 @@ static void render_direct(const uint8_t* cells, const uint16_t* palette) {
     if (!cells_any && shown) { shown = false; perf_end(PERF_PERFORM); }
 }
 
-void performer_note_flush(int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
-    if (direct) direct_sprite_note_flush(&ds, x1, y1, x2, y2);
+void performer_overlay(int32_t x1, int32_t y1, int32_t x2, int32_t y2, uint16_t* px) {
+    if (direct) direct_sprite_overlay(&ds, x1, y1, x2, y2, px);
 }
 
 static void render_cells(const uint8_t* cells, const uint16_t* palette) {

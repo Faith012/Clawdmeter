@@ -27,9 +27,10 @@
 void performer_init(lv_obj_t *parent, int feet_y);
 void performer_tick(void);
 bool performer_available(void);
-// The flush callback calls this after each area LVGL draws, so a directly
-// drawn performer paints himself back over it. A no-op otherwise.
-void performer_note_flush(int32_t x1, int32_t y1, int32_t x2, int32_t y2);
+// The flush callback calls this with each area LVGL rendered, before it goes
+// to the panel, so a directly drawn performer is written into it. A no-op
+// otherwise.
+void performer_overlay(int32_t x1, int32_t y1, int32_t x2, int32_t y2, uint16_t* px);
 
 enum PerformerSide { PERFORMER_LEFT = -1, PERFORMER_RIGHT = +1 };
 

@@ -53,9 +53,11 @@ static uint32_t my_tick(void) { return millis(); }
 static void my_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map) {
     int32_t w = area->x2 - area->x1 + 1;
     int32_t h = area->y2 - area->y1 + 1;
+    // A directly drawn Clawd (boards without PSRAM) goes into the band
+    // before it's sent, so the panel never shows the meters where he stands.
+    performer_overlay(area->x1, area->y1, area->x2, area->y2, (uint16_t*)px_map);
+    mascot_overlay(area->x1, area->y1, area->x2, area->y2, (uint16_t*)px_map);
     display_hal_draw_bitmap(area->x1, area->y1, w, h, (uint16_t*)px_map);
-    performer_note_flush(area->x1, area->y1, area->x2, area->y2);
-    mascot_note_flush(area->x1, area->y1, area->x2, area->y2);
     lv_display_flush_ready(disp);
 }
 
