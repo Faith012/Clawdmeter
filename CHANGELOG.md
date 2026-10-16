@@ -29,10 +29,16 @@ the app's **Flash** page.
     Holding PWR for 3 seconds still clears pairing.
   * **Alerts** pause it: the meters and the alert come back, and afterwards
     the game returns frozen with a play sign; a tap carries on.
+  * **Extras**, now and then: a **spring** on a platform sends him three
+    times as high; a small **cloud** (from score 50) gives him a ride
+    straight up on his cloud for a few seconds, through everything; and
+    from score 150 **bugs** crawl across the gaps. Land on a bug to squash
+    it; touch one any other way and he's knocked off.
+    ([b92756c](https://github.com/Faith012/Clawdmeter/commit/b92756c))
   * The screen doesn't rotate while you play, and no shows or screensaver
     interrupt it. The meters keep updating underneath.
 
-  Clawd is drawn from the official "jumping" animation, on a grid of 4 px
+  Clawd is drawn from the official "jumping" and "cloud" animations, on a grid of 4 px
   cells written straight to the panel; only the cells that change each
   frame are sent, at about 30 frames a second. The grid's 29 KB are taken
   only while you play.
