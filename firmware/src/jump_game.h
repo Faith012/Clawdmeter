@@ -12,6 +12,12 @@
 // leaving one side brings him in from the other. The view follows him up
 // past its upper third and never comes down. He falls out of the bottom:
 // game over.
+//
+// Rare extras: a spring on a platform sends him three times as high; a
+// cloud on one, touched, carries him straight up for a while through
+// everything; bugs crawl sideways in the gaps: land on one and he squashes
+// it, touch one any other way and he's knocked off (he drops through
+// everything to game over).
 
 #define JG_JUMP     36      // apex height of a bounce, cells
 #define JG_APEX_S   0.5f    // seconds from a bounce to the apex
@@ -24,10 +30,31 @@
 #define JG_FULL     0.45f   // tilt (g) for full speed
 #define JG_MAX      24      // platforms alive at once
 #define JG_START_Y  6       // the first platform, under him at the start
+#define JG_BODY_W   16      // his body, for touching things: 16 x 15 above his feet
+#define JG_BODY_H   15
+#define JG_SPRING   1.73f   // launch speed on a spring (sqrt 3: three times as high)
+#define JG_ITEM_W   10      // the spring / cloud on a platform, centred on it
+#define JG_ITEM_H   5
+#define JG_FLY_S    2.5f    // the cloud ride
+#define JG_FLY_V    170.0f  // ...straight up, cells/s
+#define JG_BUG_W    13
+#define JG_BUG_H    8
+#define JG_BUG_V    25.0f   // a bug's crawl, cells/s
+#define JG_BUGS     4
+
+enum JumpItem { JG_ITEM_NONE, JG_ITEM_SPRING, JG_ITEM_CLOUD };
 
 struct JumpPlatform {
-    int  x, y;              // left column; top surface (he stands at y)
-    bool live;
+    int     x, y;           // left column; top surface (he stands at y)
+    bool    live;
+    uint8_t item;           // JumpItem, sitting on the top surface
+};
+
+struct JumpBug {
+    float x;                // left column
+    int   y;                // bottom row
+    float vx;
+    bool  live;
 };
 
 struct JumpGame {
@@ -37,10 +64,13 @@ struct JumpGame {
     float        cam;         // world y at the bottom of the view
     float        since_bounce;
     float        best;        // highest py so far
+    float        fly;         // seconds left on the cloud
+    bool         knocked;     // a bug got him: he drops to game over
     int          top;         // highest platform's y
     bool         over;
     uint32_t     rng;
     JumpPlatform plat[JG_MAX];
+    JumpBug      bug[JG_BUGS];
 };
 
 void jump_start(JumpGame* g, int cols, int view, uint32_t seed);

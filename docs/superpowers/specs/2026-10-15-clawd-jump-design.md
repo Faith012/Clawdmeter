@@ -33,6 +33,25 @@ weak default says "no tilt".
 - **PWR hold ~3 s + release still clears the pairing**: the game never
   touches it.
 
+## Bonuses and bugs
+
+Added on 2026-10-15, before the first release. All rare, so the game stays
+the same with surprises:
+
+- **Spring** (~1 platform in 12): landing on that platform sends him about
+  three times as high.
+- **Cloud** (~1 in 40, from score 50): a small cloud on a platform. Touch it
+  and he rides the official "cloud" animation straight up for 2.5 s,
+  through everything, then carries on falling and bouncing as usual.
+- **Bugs** (~1 in 25, from score 150): original pixel beetles, a joke on
+  code bugs, crawling sideways (wrapping) halfway up a gap. Land on one and
+  he squashes it and bounces; touch it any other way and he's knocked off:
+  he drops through everything and the game ends. The cloud ride passes
+  through them.
+
+The spring, the cloud pickup and the bugs are original pixel art, not
+Clawd; Clawd himself is only ever the official "jumping" and "cloud" frames.
+
 ## While playing
 
 - An alert pauses the game: the meters and the normal alert come back.

@@ -21,18 +21,23 @@ LV_FONT_DECLARE(font_styrene_20);
 #define OVER_EXIT_MS   30000     // game over, untouched: back to the meters
 #define TILT_ACTIVITY  0.08f     // a tilt change (g) that counts as you being here
 
-// Palette: the official "jumping" Clawd's colours, plus the scene's own.
+// Palette: the official "jumping" Clawd's colours, the "cloud" ride's mapped
+// in from slot 10 (cloud_map), plus the scene's own.
+#define C_BUG   13               // a bug's shell
 #define C_BODY  14               // platform body: Clawd's shade
-#define C_EDGE  15               // platform edge, score, play sign: ivory
+#define C_EDGE  15               // platform edge, score, play sign, spring, legs: ivory
 static uint16_t pal[CLAWD_PALETTE_SIZE];
+static uint8_t  jump_map[CLAWD_PALETTE_SIZE], cloud_map[CLAWD_PALETTE_SIZE];
 
 enum State { G_OFF, G_PLAY, G_PAUSED, G_OVER };
 static State        st = G_OFF;
 static bool         shown = false;     // the cover is up (not hidden for an alert)
 static JumpGame     g;
 static DirectSprite ds;
-static const ClawdAnim* anim = NULL;
-static uint8_t      feet[16];          // per frame: its lowest drawn row
+static const ClawdAnim* anim = NULL;     // "jumping"
+static const ClawdAnim* cloud = NULL;    // "cloud": the ride
+static uint16_t     cloud_f = 0;         // the ride's frame, looping
+static uint32_t     cloud_at = 0;
 static uint32_t     last_ms = 0, drawn_ms = 0, over_at = 0;
 static float        noted_tilt = 0;
 static uint32_t     best = 0;
@@ -67,15 +72,19 @@ static void build(void) {
     lv_label_set_text(label(over_box, &font_styrene_20, THEME_DIM, 110), "Tap to play again");
 
     anim = clawd_anim("jumping");
-    if (anim) {
-        memcpy(pal, anim->palette, sizeof(pal));
-        for (int f = 0; f < anim->frame_count && f < 16; f++) {
-            const uint8_t* src = clawd_frame(anim, f);
-            for (int r = 0; r < anim->h; r++)
-                for (int c = 0; c < anim->w; c++)
-                    if (src[r * anim->w + c]) feet[f] = r;
-        }
+    cloud = clawd_anim("cloud");
+    if (anim) memcpy(pal, anim->palette, sizeof(pal));
+    for (int i = 0; i < CLAWD_PALETTE_SIZE; i++) jump_map[i] = i;
+    // The cloud's colours: the same slot where "jumping" has the colour,
+    // else a free one from 10 up.
+    uint8_t next_free = 10;
+    for (int i = 1; cloud && i < CLAWD_PALETTE_SIZE; i++) {
+        int k = 1;
+        while (k < 10 && pal[k] != cloud->palette[i]) k++;
+        if (k == 10 && next_free < C_BUG) { k = next_free++; pal[k] = cloud->palette[i]; }
+        cloud_map[i] = k < C_BUG ? k : 1;
     }
+    pal[C_BUG] = 0x7C6B;
     pal[C_BODY] = 0xBB49;
     pal[C_EDGE] = 0xFFDE;
 
@@ -111,6 +120,44 @@ static void draw_number(int n, int row) {
     }
 }
 
+// Original pixel art for what isn't Clawd (rows top down; '.' empty).
+// B shell, E eye, L ivory, A cloud, S its shade.
+static const char* const SPRING[JG_ITEM_H] = {
+    "..LLLLLL..", "....LL....", "...L..L...", "....LL....", "...L..L...",
+};
+static const char* const CLOUDLET[JG_ITEM_H] = {
+    "...AA.....", "..AAAA.AA.", ".AAAAAAAAA", "AAAAAAAAAA", ".SSSSSSSS.",
+};
+static const char* const BUG[JG_BUG_H] = {
+    "...L.....L...", "....L...L....", "...BBBBBBB...", "..BBEBBBEBB..",
+    "LBBBBBBBBBBBL", ".BBBBBBBBBBB.", "LBBBBBBBBBBBL", "..L.L...L.L..",
+};
+
+static void art(const char* const* rows, int h, int col, int row) {
+    for (int y = 0; y < h; y++)
+        for (int x = 0; rows[y][x]; x++) {
+            const char ch = rows[y][x];
+            const uint8_t code = ch == 'B' ? C_BUG : ch == 'E' ? 2 : ch == 'L' ? C_EDGE
+                               : ch == 'A' ? cloud_map[2] : ch == 'S' ? cloud_map[3] : 0;
+            if (code) fill(col + x, row + y, 1, 1, code);
+        }
+}
+
+// A Clawd frame through a palette map, its lowest drawn row on screen row
+// `feet_row`, centred on column `centre`, on both sides when it wraps.
+static void put_frame(const ClawdAnim* a, uint16_t f, const uint8_t* map, int centre, int feet_row) {
+    const uint8_t* src = clawd_frame(a, f);
+    int feet = 0;
+    for (int i = 0; i < a->w * a->h; i++) if (src[i]) feet = i / a->w;
+    const int row = feet_row - feet, col = centre - a->w / 2;
+    for (int shift = -ds.cols; shift <= ds.cols; shift += ds.cols) {
+        if (col + shift >= ds.cols || col + shift + a->w <= 0) continue;
+        for (int y = 0; y < a->h; y++)
+            for (int x = 0; x < a->w; x++)
+                if (src[y * a->w + x]) fill(col + shift + x, row + y, 1, 1, map[src[y * a->w + x]]);
+    }
+}
+
 static void draw_play_sign(void) {
     const int h = 12, c0 = ds.cols / 2 - 8, r0 = ds.rows / 2;
     for (int k = -h; k <= h; k++) fill(c0, r0 + k, (h - abs(k)) * 7 / 4 + 1, 1, C_EDGE);
@@ -125,16 +172,31 @@ static void render(void) {
             const int top = jump_screen_row(&g, p.y - 1);
             fill(p.x, top, JG_PW, 1, C_EDGE);
             fill(p.x, top + 1, JG_PW, JG_PH - 1, C_BODY);
+            if (p.item == JG_ITEM_NONE) continue;
+            art(p.item == JG_ITEM_SPRING ? SPRING : CLOUDLET, JG_ITEM_H, p.x + (JG_PW - JG_ITEM_W) / 2,
+                jump_screen_row(&g, p.y + JG_ITEM_H - 1));
         }
-        if (anim) {
-            const int f = jump_frame(&g);
-            const int row = jump_screen_row(&g, (int)floorf(g.py)) - feet[f];
-            const int col = (int)g.px - anim->w / 2;
-            const uint8_t* src = clawd_frame(anim, f);
-            direct_sprite_put(&ds, src, anim->w, anim->h, false, col, row);
-            // Halfway through a side, he shows on both.
-            if (col < 0) direct_sprite_put(&ds, src, anim->w, anim->h, false, col + ds.cols, row);
-            if (col + anim->w > ds.cols) direct_sprite_put(&ds, src, anim->w, anim->h, false, col - ds.cols, row);
+        for (int i = 0; i < JG_BUGS; i++) {
+            const JumpBug& b = g.bug[i];
+            if (!b.live) continue;
+            const int row = jump_screen_row(&g, b.y + JG_BUG_H - 1);
+            art(BUG, JG_BUG_H, (int)b.x, row);
+            if (b.x + JG_BUG_W > ds.cols) art(BUG, JG_BUG_H, (int)b.x - ds.cols, row);
+        }
+        const int feet_row = jump_screen_row(&g, (int)floorf(g.py));
+        if (g.fly > 0 && cloud) {
+            // The ride: the official cloud's flying loop, at its own pace.
+            if (cloud_f < cloud->loop_start || cloud_f > cloud->loop_end) {
+                cloud_f = cloud->loop_start;
+                cloud_at = millis();
+            } else if (millis() - cloud_at >= cloud->holds[cloud_f]) {
+                cloud_f = cloud_f == cloud->loop_end ? cloud->loop_start : cloud_f + 1;
+                cloud_at = millis();
+            }
+            put_frame(cloud, cloud_f, cloud_map, (int)g.px, feet_row);
+        } else if (anim) {
+            cloud_f = 0;
+            put_frame(anim, jump_frame(&g), jump_map, (int)g.px, feet_row);
         }
         draw_number(jump_score(&g), 3);
         if (st == G_PAUSED) draw_play_sign();

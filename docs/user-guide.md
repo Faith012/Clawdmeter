@@ -181,6 +181,11 @@ board left or right to steer him. Leaving one side of the screen brings him
 in from the other. Fall off the bottom and the game is over: the screen shows
 your score and your best, and a tap plays again.
 
+- **Extras**, now and then: land on a platform with a **spring** and he
+  jumps three times as high; touch a small **cloud** and he rides it
+  straight up for a few seconds. From a score of 150, **bugs** crawl across
+  the gaps: land on one to squash it, but touch one any other way and he's
+  knocked off.
 - **Leave the game:** press PWR once, or hold the screen for 2 seconds again.
   It also ends on its own 30 seconds after game over, or when the screen
   goes to sleep.
