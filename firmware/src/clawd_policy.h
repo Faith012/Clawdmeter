@@ -260,7 +260,7 @@ enum ClawdStatus {
     STATUS_WAITING,    // an alert is up
     STATUS_LIMIT,      // `st` is "limited"
 };
-#define STATUS_DONE_MS       (5UL * 60UL * 1000UL)
+#define STATUS_DONE_MS       (30UL * 1000UL)   // then the line goes back to the account's email
 // An open turn with no prompt or tool activity for this long is over: a
 // turn ended with Esc never sends a Stop.
 #define STATUS_TURN_STALE_MS (10UL * 60UL * 1000UL)

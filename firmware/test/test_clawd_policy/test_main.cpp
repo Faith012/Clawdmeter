@@ -410,7 +410,7 @@ static void test_status_prompt_thinks_tools_work(void) {
 }
 
 static void test_status_stop_is_done_then_idle(void) {
-    StatusInput in = status_at(10 * MIN);
+    StatusInput in = status_at(9 * MIN + 10 * SEC);
     in.have_prompt = true; in.prompt_at = 5 * MIN;
     in.have_stop = true;   in.stop_at = 9 * MIN;
     TEST_ASSERT_EQUAL(STATUS_DONE, clawd_status(&in));

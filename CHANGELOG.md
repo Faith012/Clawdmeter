@@ -8,6 +8,27 @@ to the v2.1.0 this fork is based on, is in
 
 Each release's section below is also its GitHub release text.
 
+## v2.6.1
+
+Firmware only: the desktop app is the same as v2.6.0. Update the board from
+the app's **Flash** page.
+
+### What's Changed
+
+* **The whole email fits.** When the account's email is too wide for the
+  status line, it steps down through smaller sizes of the same font until
+  it fits, instead of being cut with "…". Only past the smallest size is it
+  still cut. Every other status keeps the usual size.
+* **"Done" lasts 30 seconds** instead of five minutes, so the email comes
+  back soon after Claude finishes.
+* **Release builds for the Sunton ESP32-2432S028R (CYD)** no longer fail now
+  and then on a missing `ff.h`: the unused SD library is left out of its
+  build, as it already was on the 2432S024C.
+
+Tested on an ESP32-C6-Touch-AMOLED-2.16.
+
+**Full Changelog**: https://github.com/Faith012/Clawdmeter/compare/v2.6.0...v2.6.1
+
 ## v2.6.0
 
 Desktop app and firmware: install the new `.msi` (or your platform's

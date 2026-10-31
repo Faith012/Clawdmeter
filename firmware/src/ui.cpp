@@ -66,6 +66,7 @@ static lv_obj_t* lbl_session_pct_sym = nullptr;  // "%" in smaller font
 static lv_obj_t* lbl_spending_desc = nullptr;     // "of spending limit"
 static lv_obj_t* lbl_spending_status = nullptr;   // "Under pace" / "On pace" / "Over pace"
 static lv_obj_t* lbl_anim;      // status line: connection state + whimsical idle
+static void set_anim_font(const lv_font_t* f);
 
 // ---- Battery indicator (shared, on top) ----
 static lv_obj_t* battery_img;
@@ -420,7 +421,7 @@ static void init_usage_screen(lv_obj_t* scr) {
     // Status line — always visible on the usage view. Driven by ui_tick_anim().
     lbl_anim = lv_label_create(usage_container);
     lv_label_set_text(lbl_anim, "");
-    lv_obj_set_style_text_font(lbl_anim, L.status_font, 0);
+    set_anim_font(L.status_font);
     lv_obj_set_style_text_color(lbl_anim, COL_ACCENT, 0);
     lv_obj_align(lbl_anim, LV_ALIGN_BOTTOM_MID, 0, L.status_y);
 }
@@ -499,21 +500,53 @@ void ui_init(void) {
 }
 
 // The account's email (`em`) is what the status line says at rest, in place
-// of the whimsical verbs; cut with "…" where the line is too narrow. An app
-// that sends none keeps the verbs.
+// of the whimsical verbs. Too wide for the line's font, it steps down the
+// same face's smaller sizes until it fits; past the smallest it's cut with
+// "…". An app that sends none keeps the verbs.
+LV_FONT_DECLARE(font_mono_32);
+LV_FONT_DECLARE(font_mono_28);
+LV_FONT_DECLARE(font_mono_24);
+LV_FONT_DECLARE(font_mono_21);
+LV_FONT_DECLARE(font_mono_18);
+LV_FONT_DECLARE(font_mono_15);
+LV_FONT_DECLARE(font_mono_12);
+static const lv_font_t* const STATUS_FONTS[] = {   // largest first, all with the spinner glyphs
+    &font_mono_32, &font_mono_28, &font_mono_24, &font_mono_21, &font_mono_18, &font_mono_15, &font_mono_12,
+};
+#define STATUS_FONT_COUNT (int)(sizeof(STATUS_FONTS) / sizeof(STATUS_FONTS[0]))
+
 static char account_email[64] = "";
 static char account_line[72] = "";
+static const lv_font_t* account_font = nullptr;
+static const lv_font_t* anim_font = nullptr;   // the font on lbl_anim now
+
+static void set_anim_font(const lv_font_t* f) {
+    if (f == anim_font) return;
+    anim_font = f;
+    lv_obj_set_style_text_font(lbl_anim, f, 0);
+}
+
+static bool status_fits(const lv_font_t* f, const char* text) {
+    char buf[96];
+    snprintf(buf, sizeof(buf), "%s %s", spinner_frames[1], text);
+    return layout_text_width(f, buf) <= L.status_w;
+}
 
 static void set_account(const char* email) {
     if (strcmp(email, account_email) == 0) return;
     snprintf(account_email, sizeof(account_email), "%s", email);
-    const int len = (int)strlen(account_email);
-    for (int n = len; n >= 0; n--) {
-        snprintf(account_line, sizeof(account_line), "%.*s%s", n, account_email, n < len ? "\xE2\x80\xA6" : "");
-        char buf[96];
-        snprintf(buf, sizeof(buf), "%s %s", spinner_frames[1], account_line);
-        if (layout_text_width(L.status_font, buf) <= L.status_w) break;
+    snprintf(account_line, sizeof(account_line), "%s", account_email);
+    // From the line's own size down (a font outside the list: only it).
+    int i = 0;
+    while (i < STATUS_FONT_COUNT && STATUS_FONTS[i] != L.status_font) i++;
+    account_font = L.status_font;
+    for (int k = i; k < STATUS_FONT_COUNT; k++) {
+        account_font = STATUS_FONTS[k];
+        if (status_fits(account_font, account_line)) break;
     }
+    const int len = (int)strlen(account_email);
+    for (int n = len - 1; n >= 0 && !status_fits(account_font, account_line); n--)
+        snprintf(account_line, sizeof(account_line), "%.*s\xE2\x80\xA6", n, account_email);
     frozen_shown = nullptr;            // a held spinner redraws the new line
 }
 
@@ -679,6 +712,7 @@ void ui_tick_anim(void) {
                          : view_state == 1 ? (data_received ? "Stale" : "No data") : "Connected";
         if (text != still_shown) {
             still_shown = text;
+            set_anim_font(L.status_font);
             static char sbuf[40];
             snprintf(sbuf, sizeof(sbuf), "%s %s", spinner_frames[1], text);
             lv_label_set_text(lbl_anim, sbuf);
@@ -739,6 +773,7 @@ void ui_tick_anim(void) {
         if (text == frozen_shown) return;
         frozen_shown = text;
     }
+    set_anim_font(text == account_line && account_font ? account_font : L.status_font);
 
     // All states share the whimsical style: "<glyph> <Title-case word>…"
     static char buf[80];
@@ -791,6 +826,7 @@ void ui_set_claude_status(ClawdStatus s) {
 void ui_set_alert_text(const char* message) {
     if (message && message[0]) {
         alert_active = true;
+        set_anim_font(L.status_font);
         // Minimal mode: nothing moves, so a long message is cut, not scrolled.
         lv_label_set_long_mode(lbl_anim, minimal_mode() ? LV_LABEL_LONG_DOT
                                                         : LV_LABEL_LONG_SCROLL_CIRCULAR);

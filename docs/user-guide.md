@@ -127,7 +127,7 @@ way. **Show what Claude is doing** (on by default) turns the corner Clawd
 and the status line into a readout of Claude Code: he searches with his
 magnifier while Claude is thinking ("Claude is thinking..."), types on his
 laptop while it runs tools ("Claude is working..."), jumps for joy when a
-turn is done ("Done", for five minutes), and sits still when you're out of
+turn is done ("Done", for 30 seconds), and sits still when you're out of
 quota ("Limit reached"). Shows, the screensaver and alerts are unchanged.
 The device remembers these settings across restarts.
 

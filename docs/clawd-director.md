@@ -477,7 +477,7 @@ priority first:
 | waiting | an alert is up | the attention beat | the alert |
 | working | `a` > 0, no Stop since the last prompt, and (once the app has sent one) an `e:"w"` since it | `laptop`: out once, then typing until the state ends | `Claude is working…` |
 | thinking | a prompt (`e:"p"`/`"b"`), no tool calls now, no Stop since | `magnifier`, repeated | `Claude is thinking…` |
-| done | a Stop in the last 5 min (`STATUS_DONE_MS`) | `jumping happy` once, then still | `Done` |
+| done | a Stop in the last 30 s (`STATUS_DONE_MS`) | `jumping happy` once, then still | `Done` |
 | idle | none of these | idle acts as usual | the whimsical verbs |
 
 - A Stop at or after the last prompt ends the turn even while `a` still
