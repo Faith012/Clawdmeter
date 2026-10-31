@@ -8,6 +8,29 @@ to the v2.1.0 this fork is based on, is in
 
 Each release's section below is also its GitHub release text.
 
+## v2.6.0
+
+Desktop app and firmware: install the new `.msi` (or your platform's
+package), then update the board from the **Flash** page.
+
+### What's Changed
+
+* **The status line shows whose account is in use.** When Claude is idle,
+  the line under the meters shows the email of the Claude account you're
+  logged in to, in place of the whimsical verbs ("Cogitating…",
+  "Percolating…"), so with several accounts you can see at a glance which
+  one is active. A `/login` to another account shows on the device within a
+  few seconds. What Claude is doing still comes first (thinking, working,
+  Done, Limit reached), and so do alerts and the connection states. A long
+  email is cut with "…" on narrow screens.
+* **Protocol addition** (older firmware ignores it): `em` carries the shown
+  account's email, read from Claude Code's `.claude.json`
+  (`oauthAccount.emailAddress`). Without it (an older app, an API key) the
+  line keeps the verbs. See
+  [docs/protocol.md](https://github.com/Faith012/Clawdmeter/blob/main/docs/protocol.md).
+
+**Full Changelog**: https://github.com/Faith012/Clawdmeter/compare/v2.5.0...v2.6.0
+
 ## v2.5.0
 
 Firmware only: the desktop app is the same as v2.3.1. Update the board from

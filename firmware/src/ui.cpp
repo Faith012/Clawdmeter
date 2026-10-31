@@ -498,10 +498,30 @@ void ui_init(void) {
     anim_verb_idx = fitting_verb(0);
 }
 
+// The account's email (`em`) is what the status line says at rest, in place
+// of the whimsical verbs; cut with "…" where the line is too narrow. An app
+// that sends none keeps the verbs.
+static char account_email[64] = "";
+static char account_line[72] = "";
+
+static void set_account(const char* email) {
+    if (strcmp(email, account_email) == 0) return;
+    snprintf(account_email, sizeof(account_email), "%s", email);
+    const int len = (int)strlen(account_email);
+    for (int n = len; n >= 0; n--) {
+        snprintf(account_line, sizeof(account_line), "%.*s%s", n, account_email, n < len ? "\xE2\x80\xA6" : "");
+        char buf[96];
+        snprintf(buf, sizeof(buf), "%s %s", spinner_frames[1], account_line);
+        if (layout_text_width(L.status_font, buf) <= L.status_w) break;
+    }
+    frozen_shown = nullptr;            // a held spinner redraws the new line
+}
+
 void ui_update(const UsageData* data) {
     if (!data->valid) return;
     data_ok = data->ok;
     if (!data->ok) return;          // a {"ok":false} "no data" beat → fall through to idle, keep last numbers
+    set_account(data->email);
     last_data_ms = lv_tick_get();   // a real usage update just landed
     data_received = true;
 
@@ -687,8 +707,9 @@ void ui_tick_anim(void) {
         anim_spinner_idx = 1;
     }
 
-    // Status text by priority. What Claude is doing (status mode) or the
-    // whimsical messages, only when connected & settled.
+    // Status text by priority. What Claude is doing (status mode), else the
+    // account's email, else the whimsical messages, only when connected &
+    // settled.
     const char* text;
     bool dots = true;                  // "…": still going
     if (!s_ble_connected) {
@@ -706,6 +727,9 @@ void ui_tick_anim(void) {
         dots = false;
     } else if (claude_status == STATUS_LIMIT) {
         text = "Limit reached";
+        dots = false;
+    } else if (account_line[0]) {
+        text = account_line;           // at rest: whose account this is
         dots = false;
     } else {
         text = anim_messages[anim_verb_idx];

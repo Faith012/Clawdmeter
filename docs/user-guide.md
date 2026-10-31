@@ -153,11 +153,16 @@ draws him straight to the panel instead, so its shows, calm dips, lurk
 trips and alert walk-on look as they do on S3; the AMOLED-1.8 (C6) plays
 shows as acts in his corner seat and waves from it for an alert.
 
-The status line rotates through Claude Code's whimsical thinking verbs when
-all is well. It shows **Waiting** without a connection, **No data** before a
-reading, and **Stale** when the retained reading is old. The verbs are a
-healthy-status indicator, not a report of an active model request. While
-connected but waiting for fresh data, the status alternates with **Listening**. Minimal display uses fixed status text.
+When all is well and Claude is idle, the status line shows the email of the
+Claude account in use, so with several accounts you can see which one
+you're logged in to; a `/login` to another account shows on the device
+within a few seconds. What Claude is doing comes first (thinking, working,
+**Done**, **Limit reached**), and so do alerts. It shows **Waiting** without
+a connection, **No data** before a reading, and **Stale** when the retained
+reading is old. While connected but waiting for fresh data, the status
+alternates with **Listening**. With an app older than v2.6.0, or no email
+to show (an API key), the line rotates through Claude Code's whimsical
+thinking verbs instead. Minimal display uses fixed status text.
 
 If updates stop, the meters dim. The last reading is retained rather than
 replaced with zero. See [Clawd's director](clawd-director.md) for timing

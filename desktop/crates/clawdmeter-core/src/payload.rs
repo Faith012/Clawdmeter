@@ -2,8 +2,8 @@
 //!
 //! Keys match `payload_parse()` in `firmware/src/payload.cpp`, in the order
 //! the old daemons wrote them, plus the additive fast-clock fields `a`, `e`,
-//! `es`, `n`, `rp` and Clawd's settings `lv` and `aa` (old firmware ignores
-//! unknown keys).
+//! `es`, `n`, `rp`, Clawd's settings `lv`, `aa` and `sm`, and the account's
+//! email `em` (old firmware ignores unknown keys).
 
 use chrono::{DateTime, Datelike, Months, TimeZone, Utc};
 use serde::Serialize;
@@ -89,12 +89,15 @@ pub struct Payload {
     /// The device keeps the last value it got.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sm: Option<u8>,
+    /// The shown account's email (ASCII), for the status line at rest.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub em: Option<String>,
 }
 
 /// Every key [`Payload`] can emit, in serialization order.
 pub const PAYLOAD_KEYS: &[&str] = &[
     "s", "sr", "w", "wr", "st", "acct", "tp", "pd", "rd", "t", "tf", "c", "ok", "b", "m", "x", "a", "e", "es", "n",
-    "rp", "lv", "aa", "sm",
+    "rp", "lv", "aa", "sm", "em",
 ];
 /// The fast-clock keys added in v0.4 (old firmware ignores them).
 pub const ADDITIVE_KEYS: &[&str] = &["a", "e", "es", "n", "rp"];
@@ -505,6 +508,7 @@ mod tests {
             lv: Some(3),
             aa: Some(120),
             sm: Some(1),
+            em: Some("me@example.com".into()),
         };
         let v: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&pl.to_json()).unwrap();
         // serde_json's Map is sorted without preserve_order; check membership.

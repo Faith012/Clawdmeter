@@ -75,6 +75,7 @@ bool payload_parse(const char* json, UsageData* out, const char** err) {
     }
     JsonVariant sm = doc["sm"];
     d.status_mode = sm.isNull() ? -1 : ((sm | 1) ? 1 : 0);
+    copy_str(d.email, sizeof(d.email), doc["em"] | "");
 
     d.ok = doc["ok"] | false;
     d.valid = true;

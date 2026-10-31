@@ -677,6 +677,23 @@ pub(crate) fn for_account(cmd: &mut Command, config_dir: &Path, home: &Path) {
     crate::platform::no_console(cmd);
 }
 
+/// Longest email the device shows (its buffer holds 63 characters).
+pub const EMAIL_MAX: usize = 63;
+
+/// The email of the account logged in to one config dir, from Claude Code's
+/// `.claude.json` (`oauthAccount.emailAddress`): `~/.claude.json` for the
+/// default `~/.claude`, `<dir>/.claude.json` for any other. A `/login` to
+/// another account rewrites it. `None` when there's none (logged out, an API
+/// key) or it isn't printable ASCII the device can draw.
+pub fn account_email(config_dir: &Path, home: &Path) -> Option<String> {
+    let file =
+        if config_dir == home.join(".claude") { home.join(".claude.json") } else { config_dir.join(".claude.json") };
+    let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(file).ok()?).ok()?;
+    let email = v.get("oauthAccount")?.get("emailAddress")?.as_str()?.trim();
+    let drawable = !email.is_empty() && email.len() <= EMAIL_MAX && email.bytes().all(|b| (0x20..0x7f).contains(&b));
+    drawable.then(|| email.to_owned())
+}
+
 /// Build the `/usage` command for one account.
 pub fn usage_command(claude: &Path, config_dir: &Path, home: &Path) -> Command {
     let mut cmd = Command::new(claude);
@@ -1177,6 +1194,37 @@ mod tests {
         std::fs::write(dbg.join("latest"), "2026-10-13T15:40:00Z [DEBUG] fine\n").unwrap();
         assert_eq!(rate_limit_from_debug_log(&root, now), None, "latest wins over mtimes");
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn account_email_from_claude_json() {
+        let home = std::env::temp_dir().join(format!("cm-email-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&home);
+        let default = home.join(".claude");
+        let other = home.join("work");
+        std::fs::create_dir_all(&default).unwrap();
+        std::fs::create_dir_all(&other).unwrap();
+        assert_eq!(account_email(&default, &home), None, "no .claude.json");
+        // The default dir's file sits in home, beside it, not in it.
+        std::fs::write(home.join(".claude.json"), r#"{"oauthAccount":{"emailAddress":"me@example.com"}}"#).unwrap();
+        std::fs::write(default.join(".claude.json"), r#"{"oauthAccount":{"emailAddress":"wrong@example.com"}}"#)
+            .unwrap();
+        assert_eq!(account_email(&default, &home).as_deref(), Some("me@example.com"));
+        assert_eq!(account_email(&other, &home), None);
+        std::fs::write(other.join(".claude.json"), r#"{"oauthAccount":{"emailAddress":"work@example.com"}}"#).unwrap();
+        assert_eq!(account_email(&other, &home).as_deref(), Some("work@example.com"));
+        // Nothing the device can't draw: logged out, empty, non-ASCII, too long.
+        for bad in [
+            r#"{"projects":{}}"#.to_owned(),
+            r#"{"oauthAccount":{"emailAddress":""}}"#.to_owned(),
+            r#"{"oauthAccount":{"emailAddress":"josé@example.com"}}"#.to_owned(),
+            format!(r#"{{"oauthAccount":{{"emailAddress":"{}@example.com"}}}}"#, "a".repeat(60)),
+            "not json".to_owned(),
+        ] {
+            std::fs::write(other.join(".claude.json"), &bad).unwrap();
+            assert_eq!(account_email(&other, &home), None, "{bad}");
+        }
+        let _ = std::fs::remove_dir_all(&home);
     }
 
     #[test]

@@ -3,7 +3,7 @@
 //! the clock, and performs the writes it asks for.
 
 use std::collections::{BTreeMap, HashMap};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use chrono::{DateTime, TimeZone, Utc};
@@ -145,6 +145,10 @@ pub struct Engine {
     sent_aa: Option<u16>,
     /// The status mode the device last got (`sm`).
     sent_sm: Option<u8>,
+    /// Each account's email (`.claude.json`), as last read.
+    emails: BTreeMap<PathBuf, String>,
+    /// The email the device last got (`em`).
+    sent_em: Option<String>,
     last_event_ts: Option<i64>,
     /// Latest prompt or tool activity that names no configured account.
     unattributed_activity: Option<i64>,
@@ -183,11 +187,23 @@ impl Engine {
             sent_lv: None,
             sent_aa: None,
             sent_sm: None,
+            emails: BTreeMap::new(),
+            sent_em: None,
             last_event_ts: None,
             unattributed_activity: None,
             claude_found: true,
             desktop_chime_due: false,
         }
+    }
+
+    /// An account's email as just read from its `.claude.json` (`None`: none).
+    /// The shown account's goes to the device with the next write, right away
+    /// when it changed (a `/login` to another account).
+    pub fn set_account_email(&mut self, dir: &Path, email: Option<String>) {
+        match email {
+            Some(e) => self.emails.insert(dir.to_path_buf(), e),
+            None => self.emails.remove(dir),
+        };
     }
 
     /// Current settings.
@@ -466,8 +482,11 @@ impl Engine {
         // away, like an event.
         let aa = self.settings.attention_anim.seconds();
         let sm = u8::from(self.settings.status_mode);
-        let prefs_changed =
-            self.sent_lv != Some(self.settings.liveliness) || self.sent_aa != Some(aa) || self.sent_sm != Some(sm);
+        let em = self.active.as_ref().and_then(|a| self.emails.get(a)).cloned();
+        let prefs_changed = self.sent_lv != Some(self.settings.liveliness)
+            || self.sent_aa != Some(aa)
+            || self.sent_sm != Some(sm)
+            || self.sent_em != em;
 
         let (mut payload, kind) = if self.logged_out {
             if !(self.fresh_poll || self.attention.pending()) {
@@ -505,6 +524,7 @@ impl Engine {
             p.lv = Some(self.settings.liveliness);
             p.aa = Some(aa);
             p.sm = Some(sm);
+            p.em = em;
             (p, kind)
         };
 
@@ -556,6 +576,9 @@ impl Engine {
         }
         if let Some(sm) = w.payload.sm {
             self.sent_sm = Some(sm);
+        }
+        if w.payload.ok {
+            self.sent_em = w.payload.em.clone();
         }
     }
 
@@ -1154,6 +1177,24 @@ mod tests {
         assert!(write(&mut e, T0 + 3).is_none());
         e.on_connected();
         assert_eq!(write(&mut e, T0 + 4).unwrap().payload.sm, Some(0), "resent on a reconnect");
+    }
+
+    #[test]
+    fn the_shown_accounts_email_goes_out_and_a_login_sends_it_right_away() {
+        let mut e = Engine::new(settings("config_dirs = ~/.claude, ~/.claude-work\n"));
+        let (a, b) = (PathBuf::from("/h/.claude"), PathBuf::from("/h/.claude-work"));
+        e.set_account_email(&a, Some("me@example.com".into()));
+        e.set_account_email(&b, Some("work@example.com".into()));
+        e.on_poll_results(T0, vec![(a.clone(), Ok(reading(15))), (b.clone(), Ok(reading(3)))]);
+        let w = write(&mut e, T0).unwrap();
+        assert_eq!(w.payload.em.as_deref(), Some("me@example.com"), "the shown account's, with the data");
+        assert!(write(&mut e, T0 + 1).is_none(), "nothing new");
+        e.set_account_email(&a, Some("other@example.com".into())); // a /login
+        let w = write(&mut e, T0 + 2).expect("a new email is sent right away");
+        assert_eq!((w.kind, w.payload.em.as_deref()), (WriteKind::Event, Some("other@example.com")));
+        e.set_account_email(&a, None); // logged out of it
+        assert_eq!(write(&mut e, T0 + 3).expect("the change is sent").payload.em, None);
+        assert!(write(&mut e, T0 + 4).is_none());
     }
 
     #[test]

@@ -2,6 +2,7 @@
 // are optional and clamped.
 //   pio test -d firmware -e native -f test_payload
 #include <unity.h>
+#include <stdio.h>
 #include <string.h>
 #include "payload.h"
 
@@ -109,6 +110,19 @@ static void test_status_mode(void) {
     TEST_ASSERT_EQUAL_INT(1, d.status_mode);
 }
 
+static void test_account_email(void) {
+    UsageData d;
+    TEST_ASSERT_TRUE(payload_parse("{\"ok\":true}", &d, nullptr));
+    TEST_ASSERT_EQUAL_STRING("", d.email);         // absent: the status line keeps its verbs
+    TEST_ASSERT_TRUE(payload_parse("{\"ok\":true,\"em\":\"me@example.com\"}", &d, nullptr));
+    TEST_ASSERT_EQUAL_STRING("me@example.com", d.email);
+    char json[160];
+    snprintf(json, sizeof(json), "{\"em\":\"%s@example.com\"}",
+             "a-very-long-local-part-that-goes-on-and-on-and-on-and-on");
+    TEST_ASSERT_TRUE(payload_parse(json, &d, nullptr));
+    TEST_ASSERT_EQUAL_INT(sizeof(d.email) - 1, strlen(d.email));   // cut, still terminated
+}
+
 static void test_liveliness(void) {
     UsageData d;
     TEST_ASSERT_TRUE(payload_parse("{\"ok\":true}", &d, nullptr));
@@ -137,6 +151,7 @@ int main(void) {
     RUN_TEST(test_liveliness);
     RUN_TEST(test_attention_animation);
     RUN_TEST(test_status_mode);
+    RUN_TEST(test_account_email);
     RUN_TEST(test_long_strings_truncate);
     return UNITY_END();
 }

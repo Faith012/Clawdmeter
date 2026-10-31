@@ -235,6 +235,11 @@ pub async fn run(paths: Paths, mut commands: mpsc::UnboundedReceiver<Command>, s
                 engine.update_settings(s);
                 engine.set_claude_found(claude.is_some());
             }
+            // Whose account each config dir is logged in to (a `/login`
+            // switches it): the shown one's email is the device's status line.
+            for d in engine.settings().config_dirs.clone() {
+                engine.set_account_email(&d, usage::account_email(&d, &paths.home));
+            }
         }
 
         // ---- fast clock ----

@@ -90,6 +90,8 @@ The app writes one complete JSON object per write to RX
   not the alert) and `sm` (status mode: 1 = the corner Clawd and status
   line follow Claude Code, 0 = off). The device keeps them in NVS
   (`clawd_prefs.cpp`) so they apply from boot.
+- `em`: the shown account's email from `.claude.json`, on every data
+  payload; the status line shows it at rest in place of the verbs.
 - Device → app: `0x01` on REQ (`…-0004`) when it has no data yet;
   `{"dismiss":true}` on TX (`…-0003`) when a tap or the 2-minute timeout ends
   an alert. The app clears its own alert and doesn't echo a clear back. Alerts

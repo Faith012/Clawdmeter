@@ -35,6 +35,7 @@ struct UsageData {
     int8_t   liveliness;     // `lv` 1-5 (clamped); -1 = absent (keep the saved level)
     int16_t  attn_anim_s;    // `aa` attention animation, seconds 0-120 (0 = off); -1 = absent
     int8_t   status_mode;    // `sm` 1 status mode on, 0 off; -1 = absent (keep the saved setting)
+    char     email[64];      // `em` the logged-in account's email (ASCII); empty = absent
     bool ok;                 // data parse succeeded
     bool valid;              // false until first successful parse
 };
